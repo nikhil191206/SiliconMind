@@ -1,0 +1,2 @@
+# Person B (generator) module-specific dependencies.
+# Filled in as the flow-matching/diffusion implementation starts needing packages.

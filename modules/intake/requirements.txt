@@ -1,0 +1,2 @@
+# Person D (intake) module-specific dependencies.
+# Yosys is installed as an external CLI tool, not a pip package.

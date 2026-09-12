@@ -1,0 +1,3 @@
+# Person A (encoders) module-specific dependencies.
+# PyTorch Geometric — latest compatible with the PyTorch pin in requirements-shared.txt.
+torch-geometric

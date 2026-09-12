@@ -1,0 +1,2 @@
+# Person D (llm_interaction) module-specific dependencies.
+# Fill in the specific LLM SDK once the provider/function-calling API is chosen.

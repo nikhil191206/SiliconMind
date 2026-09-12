@@ -1,0 +1,84 @@
+# Single source of truth for seeds, splits, paths, and default hyperparameters.
+# TECHNICAL.md Section 5.2 — no module hardcodes any of these values independently.
+
+seeds:
+  # Fixed project-wide random seeds (TECHNICAL.md Section 1.9.5). Never change
+  # these once experiments start — changing them invalidates prior comparisons.
+  project_seeds: [0, 1, 2, 3, 4]
+
+paths:
+  # Exact folder names per TECHNICAL.md Section 1.16.
+  data_raw: "data/raw"
+  data_processed: "data/processed"
+  sources:
+    ispd02: "data/raw/ispd02"
+    ispd2015: "data/raw/ispd2015"
+    ariane_circuit_training: "data/raw/ariane_circuit_training"
+    macroplacement: "data/raw/macroplacement"
+    circuitnet: "data/raw/circuitnet"
+    asap7: "data/raw/asap7"
+    corev: "data/raw/corev"
+  experiments_configs: "experiments/configs"
+  experiments_results: "experiments/results"
+
+dataset_split:
+  # Generalization train/held-out-chip split (TECHNICAL.md Section 1.9.4).
+  # TODO: fill once all designs in Section 1.13-1.16 are enumerated and counted —
+  # must be defined once, here, and never redefined per-experiment.
+  train_chips: []
+  test_chips: []
+
+schema_defaults:
+  # TECHNICAL.md Section 3.2 — frozen once encoder training starts.
+  d_node: 256
+  d_global: 512
+
+encoder_defaults:
+  # TECHNICAL.md Section 4.A
+  gcn:
+    num_layers: 3
+    hidden_dim: 256
+    activation: relu
+    dropout: 0.1
+  gat:
+    num_layers: 3
+    hidden_dim: 256
+    activation: relu
+    dropout: 0.1
+  de_hnn:
+    num_rounds: 2
+    hidden_dim: 256
+    aggregation: attention_weighted_sum  # tunable ablation vs. sum
+  deepgate4:
+    hidden_dim: 256
+    positional_encoding: [global_structural, local_structural]
+  optimizer:
+    type: adam
+    initial_lr: 1.0e-3
+    lr_schedule: cosine_decay
+
+generator_defaults:
+  # TECHNICAL.md Section 4.B
+  flow_matching:
+    interpolation_path: linear
+    ode_solver_steps: 50
+  diffusion_fallback:
+    train_steps: 1000
+    inference_schedule: ddim
+  guidance_weights:
+    legality: 1.0
+    wirelength: 1.0
+    congestion: 1.0
+
+evaluation:
+  # TECHNICAL.md Section 1.9
+  min_seeds_per_config: 5
+  significance_test: wilcoxon  # falls back to paired t-test if explicitly configured
+  significance_threshold: 0.05
+  drift_edit_rounds: 10
+  drift_tolerance_die_normalized: 0.01
+  llm_constraint_confidence_threshold: 0.6
+  llm_constraint_labeled_set_min_size: 100
+
+wandb:
+  project: "chip-placement-system"
