@@ -1,3 +1,5 @@
 # Person A (encoders) module-specific dependencies.
 # PyTorch Geometric — latest compatible with the PyTorch pin in requirements-shared.txt.
 torch-geometric
+# Sparse/dense Laplacian eigendecomposition for DeepGate4's global structural PE.
+scipy
