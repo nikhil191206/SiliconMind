@@ -2,6 +2,8 @@
 
 <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:0f172a,50:6d28d9,100:06b6d4&height=200&section=header&text=SiliconMind&fontSize=64&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Generative%20AI%20for%20Chip%20Placement&descAlignY=58&descSize=20" alt="SiliconMind banner" />
 
+<img width="112" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime" />
+
 <a href="https://github.com/nikhil191206/SiliconMind">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=2800&pause=900&color=8B5CF6&center=true&vCenter=true&width=800&lines=Netlist+%E2%86%92+Encoder+%E2%86%92+Flow-Matching+Generator;Verified+against+DREAMPlace+%2B+OpenROAD+%2B+RL;Natural-Language+Edits%2C+Frozen+Regions%2C+Live+Diffs;No+synthetic+data.+No+shortcuts.+Real+chips+only." alt="Typing SVG" />
 </a>
@@ -17,7 +19,7 @@
 
 <br/>
 
-## ⚡ What this is
+## What this is
 
 Given a synthesized netlist, **SiliconMind** produces a physically valid, optimized
 placement — the `(x, y)` of every macro and standard cell — using a generative deep
@@ -29,13 +31,13 @@ with a diff report, not a black box.
 Full binding spec: **[TECHNICAL.md](TECHNICAL.md)**. If anything below ever
 disagrees with it, TECHNICAL.md wins.
 
-<br/>
+<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
 
-## 🧬 Pipeline
+## Pipeline
 
 ```mermaid
 flowchart LR
-    subgraph intake["🎛️ Intake — Person D"]
+    subgraph intake["Intake — Person D"]
         A1["Netlist upload\nLEF/DEF or Verilog"]
         A2["Beginner: NL description\n→ LLM RTL draft → Yosys"]
         A1 --> A3
@@ -43,25 +45,25 @@ flowchart LR
         A3["Circuit Graph JSON"]
     end
 
-    subgraph encode["🧠 Encoders — Person A"]
+    subgraph encode["Encoders — Person A"]
         B1["GCN / GAT / DE-HNN / DeepGate4"]
         B2["node_embeddings + global_embedding"]
         B1 --> B2
     end
 
-    subgraph generate["✨ Generator — Person B"]
+    subgraph generate["Generator — Person B"]
         C1["Flow-matching / diffusion"]
         C2["frozen_mask enforced\nat tensor level"]
         C1 --> C2
     end
 
-    subgraph verify["✅ Verification — Person C"]
+    subgraph verify["Verification — Person C"]
         D1["DREAMPlace / OpenROAD\nlegalize + score"]
         D2["HPWL · congestion · legality\n=0 or it never ships"]
         D1 --> D2
     end
 
-    subgraph edit["💬 NL Edit Loop — Person D"]
+    subgraph edit["NL Edit Loop — Person D"]
         E1["\"move X away from Y\""]
         E2["Structured constraint\nconfidence < 0.6 → ask, don't guess"]
         E3["Diff report:\nunexpected_moves must be empty"]
@@ -74,7 +76,7 @@ flowchart LR
     D2 --> E2
     E2 -.freeze + guidance.-> C1
     E3 -.regenerated region.-> D1
-    D2 --> F["🖥️ Visualizer\ngeometry only, never generative"]
+    D2 --> F["Visualizer\ngeometry only, never generative"]
 
     style intake fill:#0f172a,stroke:#6d28d9,color:#fff
     style encode fill:#0f172a,stroke:#8b5cf6,color:#fff
@@ -85,7 +87,7 @@ flowchart LR
 
 <br/>
 
-## 🏗️ Why generative, not RL
+## Why generative, not RL
 
 > Independent replication has repeatedly shown classical simulated annealing beating
 > RL-based placement (the Circuit Training/AlphaChip lineage) on standard benchmarks.
@@ -95,15 +97,15 @@ flowchart LR
 RL is reproduced here **only as an honest baseline**, never as the shipped approach.
 Full reasoning: [TECHNICAL.md §1.6](TECHNICAL.md#16-why-generative-over-rl-do-not-silently-revert).
 
-<br/>
+<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
 
-## 👥 Four tracks, one system
+## Four tracks, one system
 
 <table>
-<tr><td width="25%" align="center">🧠<br/><b>A — Encoders</b></td><td>Reproduces GCN, GAT, DE-HNN, and DeepGate4 from their papers and runs the comparative benchmark that justifies the final DE-HNN+DeepGate4 hybrid.</td></tr>
-<tr><td align="center">✨<br/><b>B — Generator</b></td><td>The flow-matching/diffusion engine itself, plus the hard-freezing mechanism that makes editing possible without unintended drift.</td></tr>
-<tr><td align="center">✅<br/><b>C — Verification</b></td><td>DREAMPlace/OpenROAD integration, the RL baseline reproduction, and the metrics/statistics pipeline everyone else's results depend on.</td></tr>
-<tr><td align="center">💬<br/><b>D — LLM & Intake</b></td><td>Yosys synthesis, LLM-assisted RTL drafting, NL→constraint parsing, and the diff-report that shows exactly what changed.</td></tr>
+<tr><td width="25%" align="center"><b>A — Encoders</b></td><td>Reproduces GCN, GAT, DE-HNN, and DeepGate4 from their papers and runs the comparative benchmark that justifies the final DE-HNN+DeepGate4 hybrid.</td></tr>
+<tr><td align="center"><b>B — Generator</b></td><td>The flow-matching/diffusion engine itself, plus the hard-freezing mechanism that makes editing possible without unintended drift.</td></tr>
+<tr><td align="center"><b>C — Verification</b></td><td>DREAMPlace/OpenROAD integration, the RL baseline reproduction, and the metrics/statistics pipeline everyone else's results depend on.</td></tr>
+<tr><td align="center"><b>D — LLM & Intake</b></td><td>Yosys synthesis, LLM-assisted RTL drafting, NL→constraint parsing, and the diff-report that shows exactly what changed.</td></tr>
 </table>
 
 Frontend is picked up by all four together once the backend works end-to-end — split
@@ -111,7 +113,7 @@ by feature, not handed off as "just UI." Full detail: **[workDistribution.md](wo
 
 <br/>
 
-## 📡 Real data only
+## Real data only
 
 No Kaggle, no synthetic/crowd-sourced datasets, anywhere in this project.
 
@@ -126,9 +128,9 @@ No Kaggle, no synthetic/crowd-sourced datasets, anywhere in this project.
 
 Full fetch instructions and live checklist: **[data/README.md](data/README.md)**.
 
-<br/>
+<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
 
-## 🚦 Build status
+## Build status
 
 <!-- Update the checkmarks as each module lands real (non-mock) code. -->
 
@@ -143,7 +145,7 @@ Full fetch instructions and live checklist: **[data/README.md](data/README.md)**
 
 <br/>
 
-## 🚀 Getting started
+## Getting started
 
 ```bash
 git clone https://github.com/nikhil191206/SiliconMind.git
@@ -159,7 +161,7 @@ Full setup, GPU/CUDA notes, and per-module test commands: **[environment_setup.m
 
 <br/>
 
-## 📁 Repository map
+## Repository map
 
 ```
 SiliconMind/
@@ -169,7 +171,7 @@ SiliconMind/
 ├── config/               ← shared_config.yaml — single source of truth for seeds/splits/paths
 ├── data/                 ← raw (gitignored) + processed Circuit Graph JSON cache
 ├── modules/
-│   ├── encoders/         ← Person A ✅
+│   ├── encoders/         ← Person A (done)
 │   ├── generator/        ← Person B
 │   ├── evaluation/       ← Person C
 │   ├── intake/           ← Person D
@@ -187,7 +189,7 @@ SiliconMind/
 
 <br/>
 
-## 🤝 Contributing
+## Contributing
 
 Branch naming, ownership boundaries, and the schema-change/mock-update rule:
 **[CONTRIBUTING.md](CONTRIBUTING.md)**. Short version: own your `modules/<you>/`,
@@ -196,5 +198,9 @@ get review on anything in `shared/`.
 <br/>
 
 <div align="center">
+
+<img width="112" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime" />
+
 <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:06b6d4,50:6d28d9,100:0f172a&height=100&section=footer" alt="footer" />
+
 </div>
