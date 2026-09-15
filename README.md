@@ -2,8 +2,6 @@
 
 <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:0f172a,50:6d28d9,100:06b6d4&height=200&section=header&text=SiliconMind&fontSize=64&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Generative%20AI%20for%20Chip%20Placement&descAlignY=58&descSize=20" alt="SiliconMind banner" />
 
-<img width="112" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime" />
-
 <a href="https://github.com/nikhil191206/SiliconMind">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=2800&pause=900&color=8B5CF6&center=true&vCenter=true&width=800&lines=Netlist+%E2%86%92+Encoder+%E2%86%92+Flow-Matching+Generator;Verified+against+DREAMPlace+%2B+OpenROAD+%2B+RL;Natural-Language+Edits%2C+Frozen+Regions%2C+Live+Diffs;No+synthetic+data.+No+shortcuts.+Real+chips+only." alt="Typing SVG" />
 </a>
@@ -31,7 +29,7 @@ with a diff report, not a black box.
 Full binding spec: **[TECHNICAL.md](TECHNICAL.md)**. If anything below ever
 disagrees with it, TECHNICAL.md wins.
 
-<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
+<br/>
 
 ## Pipeline
 
@@ -97,7 +95,7 @@ flowchart LR
 RL is reproduced here **only as an honest baseline**, never as the shipped approach.
 Full reasoning: [TECHNICAL.md §1.6](TECHNICAL.md#16-why-generative-over-rl-do-not-silently-revert).
 
-<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
+<br/>
 
 ## Four tracks, one system
 
@@ -128,7 +126,7 @@ No Kaggle, no synthetic/crowd-sourced datasets, anywhere in this project.
 
 Full fetch instructions and live checklist: **[data/README.md](data/README.md)**.
 
-<div align="center"><img width="88" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime divider" /></div>
+<br/>
 
 ## Build status
 
@@ -198,9 +196,5 @@ get review on anything in `shared/`.
 <br/>
 
 <div align="center">
-
-<img width="112" src="https://github-readme-utils.vercel.app/api/gif/anime" alt="anime" />
-
 <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:06b6d4,50:6d28d9,100:0f172a&height=100&section=footer" alt="footer" />
-
 </div>
