@@ -1,5 +1,7 @@
 # Person C (evaluation) module-specific dependencies.
 # DREAMPlace / OpenROAD are installed as external tools, not pip packages —
-# see environment_setup.md once written. Add stats/py packages here as needed.
+# see environment_setup.md's DREAMPlace/OpenROAD sections. Add stats/py
+# packages here as needed.
 stable-baselines3
+gymnasium
 scipy

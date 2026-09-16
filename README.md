@@ -135,7 +135,7 @@ Full fetch instructions and live checklist: **[data/README.md](data/README.md)**
 - [x] Repo skeleton, shared schemas (`shared/schemas/`), mocks (`shared/mocks/`), config
 - [x] **Person A — Encoders**: `NetlistEncoder` interface + GCN, GAT, DE-HNN, DeepGate4, all passing their schema/shape/determinism/non-mutation unit tests against mock data (`tests/unit/encoders/`, 27/27 green)
 - [ ] **Person B — Generator**: flow-matching engine + freeze-mask enforcement
-- [ ] **Person C — Verification**: DREAMPlace/OpenROAD wrapper + RL baseline + metrics
+- [x] **Person C — Verification**: `shared/metrics/` (HPWL, congestion, legality) + DREAMPlace/OpenROAD subprocess wrapper + Bookshelf/DEF I/O + RL-baseline environment + `compare_methods` stats utility, all unit-tested against mocks/fakes/hand-computed toy data (`tests/unit/evaluation/`, 52/52 green, +1 skipped without stable-baselines3/torch installed). Real DREAMPlace/OpenROAD runs and RL-baseline training are blocked on tool installation and real datasets — see `modules/evaluation/NOTES.md`.
 - [ ] **Person D — Intake/LLM**: Yosys pipeline, Bookshelf/LEF-DEF/protobuf parsers, NL constraint parser
 - [ ] Real-data training (blocked on D's raw-format → Circuit Graph JSON parsers)
 - [ ] Backend (FastAPI) wiring
