@@ -1,2 +1,9 @@
 # Person B (generator) module-specific dependencies.
-# Filled in as the flow-matching/diffusion implementation starts needing packages.
+#
+# No additions beyond requirements-shared.txt (torch is already pinned
+# there). The generator's PlacementBackbone (modules/generator/network.py)
+# uses plain torch.nn (self-attention over the node axis) rather than
+# PyTorch Geometric — Person A's encoders already turn graph structure into
+# node_embeddings/global_embedding (Section 3.2), so this module reasons
+# over that conditioning + raw geometry rather than re-deriving netlist
+# connectivity itself.
