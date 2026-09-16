@@ -193,6 +193,11 @@ Branch naming, ownership boundaries, and the schema-change/mock-update rule:
 **[CONTRIBUTING.md](CONTRIBUTING.md)**. Short version: own your `modules/<you>/`,
 get review on anything in `shared/`.
 
+Starting Person D's track? **[HANDOFF_FOR_PERSON_D.md](HANDOFF_FOR_PERSON_D.md)**
+summarizes what A, B, and C actually built — interfaces, flagged deviations,
+and what's still blocked — so you don't have to reverse-engineer three
+modules before starting your own.
+
 <br/>
 
 <div align="center">
