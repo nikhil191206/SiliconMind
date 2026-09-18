@@ -136,13 +136,13 @@ Full fetch instructions and live checklist: **[data/README.md](data/README.md)**
 - [x] **Person A — Encoders**: `NetlistEncoder` interface + GCN, GAT, DE-HNN, DeepGate4, all passing their schema/shape/determinism/non-mutation unit tests against mock data (`tests/unit/encoders/`, 27/27 green)
 - [x] **Person B — Generator**: flow-matching (primary) + diffusion (fallback) strategies, freeze-mask enforcement bit-identical on frozen nodes, D→B constraint bridge, all unit-tested against mock data (`tests/unit/generator/`, 22/22 green) — see `modules/generator/NOTES.md`
 - [x] **Person C — Verification**: `shared/metrics/` (HPWL, congestion, legality) + DREAMPlace/OpenROAD subprocess wrapper + Bookshelf/DEF I/O + RL-baseline environment + `compare_methods` stats utility, all unit-tested against mocks/fakes/hand-computed toy data (`tests/unit/evaluation/`, 53/53 green). Real DREAMPlace/OpenROAD runs and RL-baseline training are blocked on tool installation and real datasets — see `modules/evaluation/NOTES.md`.
-- [x] **Cross-module integration (A→B, B→C, D→B)**: real encoder output feeding the real generator, real generator output reaching the real legalizer's external-tool boundary cleanly, and a full generate→edit→regenerate cycle proving frozen nodes stay bit-identical end-to-end — not just per-module unit tests (`tests/integration/`, 10/10 green). Also resolved the `graph: CircuitGraph` interface gap B and C both independently flagged — see `TECHNICAL.md` §4.B/§4.C and `shared/schemas/CHANGELOG.md`.
-- [ ] **Person D — Intake/LLM**: Yosys pipeline, Bookshelf/LEF-DEF/protobuf parsers, NL constraint parser — see `HANDOFF_FOR_PERSON_D.md` for what A/B/C already built for this track to consume
-- [ ] Real-data training (blocked on D's raw-format → Circuit Graph JSON parsers)
-- [ ] Backend (FastAPI) wiring
+- [x] **Person D — Intake/LLM**: Yosys synthesis pipeline, LLM-assisted RTL drafting, NL constraint parser, and diff reporting (`tests/unit/intake/`, `tests/unit/llm_interaction/`)
+- [x] **Backend (FastAPI)**: REST API wiring intake, generation, editing, and diff reporting through the real legalizer (`backend/main.py`, `tests/integration/`)
+- [x] **Cross-module integration (A→B, B→C, D→B, and the full backend loop)**: real encoder output feeding the real generator, real generator output reaching the real legalizer's external-tool boundary cleanly, a full generate→edit→regenerate cycle proving frozen nodes stay bit-identical end-to-end, and the FastAPI backend exercising all of the above through real HTTP calls (`tests/integration/`). Also resolved the `graph: CircuitGraph` interface gap B and C both independently flagged — see `TECHNICAL.md` §4.B/§4.C and `shared/schemas/CHANGELOG.md`.
+- [ ] Real-data training (blocked on downloading full raw benchmark datasets)
 - [ ] Frontend (shared, once backend is stable end-to-end)
 
-**112/112 tests passing** (`pytest tests/`) as of the last integration pass.
+See `pytest tests/` for the current full pass count.
 
 <br/>
 
