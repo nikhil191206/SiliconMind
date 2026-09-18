@@ -133,12 +133,12 @@ Full fetch instructions and live checklist: **[data/README.md](data/README.md)**
 <!-- Update the checkmarks as each module lands real (non-mock) code. -->
 
 - [x] Repo skeleton, shared schemas (`shared/schemas/`), mocks (`shared/mocks/`), config
-- [x] **Person A — Encoders**: `NetlistEncoder` interface + GCN, GAT, DE-HNN, DeepGate4, all passing their schema/shape/determinism/non-mutation unit tests against mock data (`tests/unit/encoders/`, 27/27 green)
-- [ ] **Person B — Generator**: flow-matching engine + freeze-mask enforcement
-- [x] **Person C — Verification**: `shared/metrics/` (HPWL, congestion, legality) + DREAMPlace/OpenROAD subprocess wrapper + Bookshelf/DEF I/O + RL-baseline environment + `compare_methods` stats utility, all unit-tested against mocks/fakes/hand-computed toy data (`tests/unit/evaluation/`, 52/52 green, +1 skipped without stable-baselines3/torch installed). Real DREAMPlace/OpenROAD runs and RL-baseline training are blocked on tool installation and real datasets — see `modules/evaluation/NOTES.md`.
-- [ ] **Person D — Intake/LLM**: Yosys pipeline, Bookshelf/LEF-DEF/protobuf parsers, NL constraint parser
-- [ ] Real-data training (blocked on D's raw-format → Circuit Graph JSON parsers)
-- [ ] Backend (FastAPI) wiring
+- [x] **Person A — Encoders**: `NetlistEncoder` interface + GCN, GAT, DE-HNN, DeepGate4, all passing unit tests (`tests/unit/encoders/`, 27/27 green)
+- [x] **Person B — Generator**: flow-matching engine + freeze-mask enforcement (`tests/unit/generator/`, 22/22 green)
+- [x] **Person C — Verification**: `shared/metrics/` (HPWL, congestion, legality) + DREAMPlace/OpenROAD subprocess wrapper + Bookshelf/DEF I/O + RL-baseline environment + `compare_methods` stats utility, all unit-tested against mocks/fakes/hand-computed toy data (`tests/unit/evaluation/`, 52/52 green). Real DREAMPlace/OpenROAD runs and RL-baseline training are blocked on tool installation and real datasets — see `modules/evaluation/NOTES.md`.
+- [x] **Person D — Intake/LLM**: Yosys synthesis pipeline, LLM-assisted RTL drafting, NL constraint parser, and diff reporting (`tests/unit/intake/`, `tests/unit/llm_interaction/`, 14/14 green)
+- [x] **Backend (FastAPI)**: REST API wiring intake, generation, editing, and diff reporting (`tests/integration/test_person_d_end_to_end.py`, 3/3 green)
+- [ ] Real-data training (blocked on downloading full raw benchmark datasets)
 - [ ] Frontend (shared, once backend is stable end-to-end)
 
 <br/>
