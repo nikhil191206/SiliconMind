@@ -128,3 +128,29 @@ implicit in code.
   not literal reimplementations of Section 1.4's formulas — necessarily so,
   since gradient-based guidance needs something differentiable and C's
   real legalizer wraps external non-differentiable tools.
+
+## 5. Bug found and fixed during A/B/C/D integration (2026-09-18)
+
+**`SpatialGuidance`'s "away_from"/"avoid_region" objective was unbounded and
+produced NaN.** It minimized a raw `-dist_sq`, which has no minimum — 50
+Euler steps of gradient descent on it diverge toward +/-infinity, and once
+`z` hits `inf` the backbone network (attention/softmax over `z`) turns that
+into `NaN`. This was invisible in `tests/unit/generator/test_guidance.py`'s
+single-gradient-call checks (one call doesn't diverge) and only surfaced
+once Person D's real end-to-end edit loop exercised a full `generate()` call
+with an "away from" constraint — see `tests/unit/generator/test_guidance.py`'s
+NaN-regression test and `tests/integration/`.
+
+**Fix:** repulsion now minimizes a bounded, saturating potential
+(`exp(-dist_sq / die_diag_sq)`, scaled to the graph's own die size) instead
+of the unbounded quadratic — it's already at its minimum-desirable value
+near zero distance and its gradient vanishes as distance grows, so descent
+can't diverge. Attraction (`toward`/`prefer_region`) was already bounded
+below by 0 and is unchanged.
+
+**Defense in depth added per Section 7's explicit requirement** (which
+existed in the spec but had no implementation until now): `generate()`
+validates its sampled coordinates for NaN/Inf before building a
+`PlacementJSON`, retries once with `seed + 1`, and raises
+`GenerationProducedInvalidCoordinatesError` (not a silent pass-through) if
+the retry also fails — see `PlacementGenerator._sample_with_retry`.

@@ -27,6 +27,23 @@ def test_parse_constraint_ambiguous_requires_clarification():
     assert constraint.constraint_type == ConstraintType.UNCLEAR or constraint.confidence < 0.6
 
 
+def test_parse_constraint_distinguishes_underscore_joined_node_ids():
+    """Regression test for the digit-extraction bug found during A/B/C/D
+    integration (2026-09-18, see modules/llm_interaction/NOTES.md): a plain
+    `\\b(\\d+)\\b` cannot match the "0" in "node_0" (underscore is a word
+    character, so there's no boundary), which silently turned this exact
+    phrase into a self-referential "move node 0 away from node 0" — a
+    degenerate constraint that reached high confidence and, downstream,
+    produced NaN in the generator (modules/generator/NOTES.md §5)."""
+    graph = make_mock_circuit_graph()
+    placement = make_mock_placement(graph)
+    constraint = parse_constraint("Move node_0 away from node_1", placement)
+
+    assert constraint.affected_node_ids == [0]
+    assert constraint.reference.value == 1
+    assert 1 not in constraint.affected_node_ids
+
+
 def test_parse_constraint_frozen_node_ids_complement():
     graph = make_mock_circuit_graph()
     placement = make_mock_placement(graph)

@@ -41,9 +41,19 @@ def _fallback_parse_heuristic(
     text_lower = nl_text.lower().strip()
     all_node_ids = [p.node_id for p in current_placement.placements]
 
-    # Check for ambiguous requests without explicit target node or macro reference
+    # Check for ambiguous requests without explicit target node or macro reference.
+    # Digit-extraction pattern note: a plain `\b(\d+)\b` does NOT match the "0" in
+    # "node_0" — `_` counts as a word character, so there is no \b boundary between
+    # "node_" and "0". That silently turned "move node_0 away from node_1" into a
+    # self-referential "move node 0 away from node 0" (both digits vanished, so it
+    # fell back to the first placed node for both the affected node and its own
+    # reference), which produced a zero-distance guidance target end-to-end through
+    # generation. Matching on "not immediately preceded by a letter or digit"
+    # instead treats `_`/`#`/whitespace/start-of-string as valid separators, so
+    # "node_0", "SRAM_0", "macro#1", and a bare "10" all extract correctly.
+    _ID_PATTERN = r"(?<![a-zA-Z0-9])(\d+)"
     ambiguous_triggers = ["move that", "move it", "change something", "too close", "fix placement", "optimize"]
-    has_explicit_id = bool(re.search(r"\b(?:node|macro|sram|cell|block)?[_#\s]*(\d+)\b", text_lower))
+    has_explicit_id = bool(re.search(_ID_PATTERN, text_lower))
 
     if any(trigger in text_lower for trigger in ambiguous_triggers) and not has_explicit_id:
         return ConstraintObject(
@@ -56,15 +66,20 @@ def _fallback_parse_heuristic(
             confidence=0.3,
         )
 
-    # Extract node numbers mentioned in text
-    digits = [int(m) for m in re.findall(r"\b(\d+)\b", text_lower)]
+    # Extract node numbers mentioned in text. Only the FIRST valid node id is
+    # the node being moved (`affected_nodes`) — a second id in phrasing like
+    # "move node_0 away from node_1" is the reference point, not something
+    # else being moved, and must stay out of affected_nodes so it's frozen
+    # like every other untouched node (see digits[1] used as ref_val below;
+    # collecting every matching digit here previously put the reference node
+    # in both affected_nodes and, incorrectly, never in frozen_node_ids).
+    digits = [int(m) for m in re.findall(_ID_PATTERN, text_lower)]
 
     affected_nodes: List[int] = []
-    if digits:
-        # Match digits to valid node IDs if possible
-        for d in digits:
-            if d in all_node_ids and d not in affected_nodes:
-                affected_nodes.append(d)
+    for d in digits:
+        if d in all_node_ids:
+            affected_nodes = [d]
+            break
 
     if not affected_nodes:
         # If no digits matched node IDs, default to first node if available or mark UNCLEAR

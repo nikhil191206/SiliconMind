@@ -42,9 +42,45 @@ from shared.schemas.placement import GenerationMetadata, Orientation, PlacementE
 MODEL_VARIANT = "DE-HNN+DeepGate4_flowmatching_v1"
 
 
+class GenerationProducedInvalidCoordinatesError(RuntimeError):
+    """Raised per TECHNICAL.md Section 7: "Generator produces NaN/invalid
+    coordinates: B's generate() must validate its own output before
+    returning; on failure, retry once with a new seed, then raise an
+    explicit error rather than silently passing invalid data to C." Both
+    the retry and this final raise happen in `_sample_with_retry` below."""
+
+
 class PlacementGenerator:
     def __init__(self, strategy: Optional[GenerationStrategy] = None):
         self.strategy: GenerationStrategy = strategy if strategy is not None else FlowMatchingGenerationStrategy()
+
+    def _sample_with_retry(
+        self,
+        encoder_output: EncoderOutput,
+        num_nodes: int,
+        frozen_mask: torch.Tensor,
+        frozen_values: torch.Tensor,
+        guidance_fn,
+        seed: int,
+    ) -> torch.Tensor:
+        for attempt_seed in (seed, seed + 1):
+            rng = torch.Generator().manual_seed(attempt_seed)
+            z = self.strategy.sample(
+                node_embeddings=encoder_output.node_embeddings,
+                global_embedding=encoder_output.global_embedding,
+                num_nodes=num_nodes,
+                frozen_mask=frozen_mask,
+                frozen_values=frozen_values,
+                guidance_fn=guidance_fn,
+                generator=rng,
+            )  # [N,2] normalized ([0,1], die-relative) coordinates
+            if torch.isfinite(z).all():
+                return z
+        raise GenerationProducedInvalidCoordinatesError(
+            f"sampling produced NaN/inf coordinates for seeds {seed} and {seed + 1} — "
+            "not retried further; this indicates a real bug (e.g. an unbounded guidance "
+            "term), not sampling noise, per TECHNICAL.md Section 7."
+        )
 
     def generate(
         self,
@@ -69,7 +105,6 @@ class PlacementGenerator:
 
         num_nodes = len(graph.nodes)
         node_id_to_index = {node_id: i for i, node_id in enumerate(encoder_output.node_id_order)}
-        rng = torch.Generator().manual_seed(seed)
 
         frozen_mask, frozen_values = build_frozen_mask(
             num_nodes, node_id_to_index, graph.die, frozen_placements
@@ -80,15 +115,7 @@ class PlacementGenerator:
         if guidance_terms is not None:
             guidance_fn = combined_guidance_fn(graph, guidance_terms, node_id_to_index)
 
-        z = self.strategy.sample(
-            node_embeddings=encoder_output.node_embeddings,
-            global_embedding=encoder_output.global_embedding,
-            num_nodes=num_nodes,
-            frozen_mask=frozen_mask,
-            frozen_values=frozen_values,
-            guidance_fn=guidance_fn,
-            generator=rng,
-        )  # [N,2] normalized ([0,1], die-relative) coordinates
+        z = self._sample_with_retry(encoder_output, num_nodes, frozen_mask, frozen_values, guidance_fn, seed)
 
         placements = []
         for node_id, idx in node_id_to_index.items():
