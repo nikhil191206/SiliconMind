@@ -23,10 +23,61 @@ paths:
 
 dataset_split:
   # Generalization train/held-out-chip split (TECHNICAL.md Section 1.9.4).
-  # TODO: fill once all designs in Section 1.13-1.16 are enumerated and counted —
-  # must be defined once, here, and never redefined per-experiment.
-  train_chips: []
-  test_chips: []
+  # Filled 2026-09-21 once all 35 currently-real, currently-parseable designs
+  # were enumerated (data/processed/build_cache.py's output) — fixed here,
+  # never redefined per-experiment. Split rule: held out on SIZE (the 2
+  # largest real designs from each of the two standard-cell sources), which
+  # tests generalization to bigger unseen chips specifically, a real and
+  # meaningful axis rather than an arbitrary held-out set.
+  #
+  # ariane (Google Circuit Training) is EXCLUDED from this split on purpose:
+  # it's a macro-only netlist (133 real macros, zero individually-modeled
+  # standard cells) with a fundamentally different node-type distribution
+  # than every ISPD02/ISPD2015 design (which are standard-cell-only, zero
+  # macros) -- mixing it into a random or size-based split would silently
+  # leak macro-vs-stdcell distribution shift into "generalization" numbers
+  # that are actually about something else. It is used separately as the
+  # dedicated macro-placement / RL-baseline design (see
+  # experiments/train_rl_baseline.py) rather than through this split.
+  train_chips:
+    - ibm01
+    - ibm02
+    - ibm03
+    - ibm04
+    - ibm05
+    - ibm06
+    - ibm07
+    - ibm08
+    - ibm09
+    - ibm10
+    - ibm11
+    - ibm12
+    - ibm13
+    - ibm14
+    - ibm15
+    - ibm16
+    - mgc_des_perf_1
+    - mgc_des_perf_a
+    - mgc_des_perf_b
+    - mgc_edit_dist_a
+    - mgc_fft_1
+    - mgc_fft_2
+    - mgc_fft_a
+    - mgc_fft_b
+    - mgc_matrix_mult_1
+    - mgc_matrix_mult_a
+    - mgc_matrix_mult_b
+    - mgc_pci_bridge32_a
+    - mgc_pci_bridge32_b
+    - mgc_superblue11_a
+  test_chips:
+    - ibm17
+    - ibm18
+    - mgc_superblue12
+    - mgc_superblue16_a
+  macro_designs:
+    # Reserved separately, not part of train/test above -- see comment.
+    - ariane
 
 schema_defaults:
   # TECHNICAL.md Section 3.2 — frozen once encoder training starts.
@@ -34,6 +85,25 @@ schema_defaults:
   d_global: 512
 
 encoder_defaults:
+  # Real node-feature normalization stats (log1p mean/std for width/height/
+  # pin_count), computed 2026-09-21 by data/processed/compute_normalization_stats.py
+  # from the 30 real train_chips above ONLY (3,105,088 real nodes across
+  # ISPD02 ibm01-ibm16 and ISPD2015's non-superblue12/16a designs) -- never
+  # from test_chips or macro_designs (ariane), which would leak information
+  # the generalization test is supposed to measure the absence of. See
+  # modules/encoders/graph_utils.py's NodeFeatureNormalization for how these
+  # are applied. Re-run compute_normalization_stats.py and update this block
+  # if dataset_split.train_chips ever changes -- these two must stay in sync.
+  node_feature_normalization:
+    log_width_mean: 0.4407830543153616
+    log_width_std: 0.37013906674937475
+    log_height_mean: 0.6320088811514368
+    log_height_std: 0.39937660973216926
+    log_pin_count_mean: 1.4337782060701934
+    log_pin_count_std: 0.3228554630168414
+    computed_from_num_designs: 30
+    computed_from_num_nodes: 3105088
+
   # TECHNICAL.md Section 4.A
   gcn:
     num_layers: 3
@@ -69,6 +139,17 @@ generator_defaults:
     legality: 1.0
     wirelength: 1.0
     congestion: 1.0
+  # Formalizes modules/generator/NOTES.md's old §1.3: Section 4.B never
+  # pinned an optimizer for B the way Section 4.A does for the encoders,
+  # so modules/generator/training.py's Trainer had been reusing this exact
+  # Adam/1e-3/cosine convention as an unstated Python-level default. Same
+  # values, now the single source of truth here per Section 5.2, mirroring
+  # encoder_defaults.optimizer above exactly rather than inventing a
+  # separate one.
+  optimizer:
+    type: adam
+    initial_lr: 1.0e-3
+    lr_schedule: cosine_decay
 
 evaluation:
   # TECHNICAL.md Section 1.9

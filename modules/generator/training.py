@@ -2,26 +2,33 @@
 workDistribution.md Person B ("owns... its training loop").
 
 BLOCKED per INSTRUCTIONS.md Section 2: actually training on real chip
-data cannot happen until the real datasets (TECHNICAL.md Section 1.13)
-are downloaded — nothing this loop produces on mock data is a result.
-`Trainer` is provided so the loop's correctness (does it run end to end,
-does the loss go down on data it CAN currently see) is verified now;
-swapping in a real `Dataset`/`DataLoader` over `data/processed/*.json`
-once real data lands is then a change to what feeds `Trainer.fit()`, not
-new training-loop code.
+data cannot happen in this environment — `data/raw/`/`data/processed/`
+are gitignored per-design, and this checkout has neither. (Elsewhere on
+the team, per `data/README.md` and `config/shared_config.yaml`'s
+`dataset_split`, all seven sources are now downloaded and `train_chips`/
+`test_chips` are filled in from 3.1M real processed nodes — so real
+training is no longer blocked on data existing, only on this environment
+having a copy of it.) `Trainer` is provided so the loop's correctness
+(does it run end to end, does the loss go down on data it CAN currently
+see) is verified now; swapping in a real `Dataset`/`DataLoader` over
+`data/processed/*.json` is then a change to what feeds `Trainer.fit()`,
+not new training-loop code.
 
-Optimizer note: Section 4.B doesn't repeat an optimizer choice for B the
-way Section 4.A pins one for the encoders (Adam, initial LR 1e-3, cosine
-decay), and `config/shared_config.yaml`'s `generator_defaults` block has
-no `optimizer` key either — this reuses Section 4.A's convention rather
-than inventing an unrelated one; flagged in NOTES.md as worth an explicit
-team decision rather than a silent default.
+Optimizer: `config/shared_config.yaml`'s `generator_defaults.optimizer`
+(Adam, initial LR 1e-3, cosine decay) is the single source of truth per
+Section 5.2, formalizing what this module had been using as an unstated
+Python-level default — see `TrainerConfig.from_shared_config()`, which
+mirrors `modules/encoders/graph_utils.py`'s `NodeFeatureNormalization.from_shared_config()`
+convention exactly (explicit error if the config block is missing, no
+silent fallback).
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 import torch
+import yaml
 
 from modules.generator.base import GenerationStrategy
 from shared.schemas.circuit_graph import CircuitGraph
@@ -35,6 +42,31 @@ TrainingExample = Tuple[CircuitGraph, EncoderOutput, PlacementJSON]
 class TrainerConfig:
     initial_lr: float = 1e-3
     num_epochs: int = 1
+
+    @classmethod
+    def from_shared_config(cls, config_path: Optional[Path] = None, num_epochs: int = 1) -> "TrainerConfig":
+        """`num_epochs` is a run-specific choice, not a project-wide
+        convention (shared_config.yaml's `generator_defaults.optimizer`
+        has no epoch count, same as `encoder_defaults.optimizer`), so it
+        stays a plain argument here rather than being read from the file."""
+        path = config_path or Path(__file__).resolve().parents[2] / "config" / "shared_config.yaml"
+        with open(path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        try:
+            optimizer = config["generator_defaults"]["optimizer"]
+        except KeyError as exc:
+            raise KeyError(
+                "config/shared_config.yaml has no generator_defaults.optimizer block yet — "
+                "add one (mirroring encoder_defaults.optimizer) before training the generator "
+                "on real data."
+            ) from exc
+        if optimizer["type"] != "adam" or optimizer["lr_schedule"] != "cosine_decay":
+            raise NotImplementedError(
+                f"generator_defaults.optimizer specifies {optimizer['type']!r}/{optimizer['lr_schedule']!r}, "
+                "but Trainer only implements Adam + cosine decay — update Trainer to match before "
+                "using this config for a real run."
+            )
+        return cls(initial_lr=optimizer["initial_lr"], num_epochs=num_epochs)
 
 
 def target_tensor(graph: CircuitGraph, placement: PlacementJSON) -> torch.Tensor:

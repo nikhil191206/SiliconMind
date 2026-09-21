@@ -6,6 +6,7 @@ are blocked until they're downloaded. Never treat these numbers as a
 reportable result.
 """
 
+import pytest
 import torch
 
 from modules.generator.flow_matching import FlowMatchingGenerationStrategy
@@ -51,3 +52,24 @@ def test_train_step_runs_with_frozen_mask_excluded_from_loss():
         frozen_mask=frozen_mask,
     )
     assert torch.isfinite(loss)
+
+
+def test_trainer_config_reads_the_now_formalized_optimizer_block():
+    """config/shared_config.yaml's generator_defaults.optimizer (added to
+    close NOTES.md's old §1.3) must match what Trainer had been using as
+    an unstated Python default — this test would have caught a drift
+    between the two."""
+    config = TrainerConfig.from_shared_config(num_epochs=3)
+    assert config.initial_lr == pytest.approx(1e-3)
+    assert config.num_epochs == 3
+
+
+def test_trainer_config_raises_clearly_if_the_config_block_is_missing():
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        empty_config = Path(tmp) / "shared_config.yaml"
+        empty_config.write_text("generator_defaults: {}\n", encoding="utf-8")
+        with pytest.raises(KeyError):
+            TrainerConfig.from_shared_config(config_path=empty_config)
