@@ -7,7 +7,6 @@ Distinguishes LLM generation from deterministic RTL validation and Yosys synthes
 Does NOT claim RTL is valid merely because the LLM returned it.
 """
 
-import os
 import re
 from typing import Optional
 
@@ -121,26 +120,25 @@ def synthesize_from_description(
     """
     description_clean = description.strip().lower()
 
-    # If explicit template requested or matches known keyword in description when no API key available
-    effective_api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
+    from shared.llm_client import NoLLMCredentialsError, resolve_llm_client
 
-    if not effective_api_key:
-        # Check if template requested or description matches fallback keywords
+    try:
+        resolved = resolve_llm_client(api_key)
+    except NoLLMCredentialsError:
+        # No LLM credentials at all: check if template requested or
+        # description matches a known offline fallback keyword.
         for key, rtl_code in _FALLBACK_TEMPLATES.items():
             if (template and template.lower() == key) or (key in description_clean):
                 return rtl_code
 
         raise LLMConfigurationError(
-            "No LLM API key configured (OPENAI_API_KEY environment variable required) "
+            "No LLM API key configured (GROQ_API_KEY or OPENAI_API_KEY/LLM_API_KEY required) "
             "and description did not match an offline fallback template. "
-            "To use online LLM RTL drafting, set OPENAI_API_KEY in your environment."
+            "To use online LLM RTL drafting, set one of those in your environment."
         )
 
-    # Call OpenAI API (or compatible LLM provider) if credentials available
+    # Call the resolved LLM provider (Groq or OpenAI) for a real completion.
     try:
-        import openai
-
-        client = openai.OpenAI(api_key=effective_api_key)
         prompt = (
             "You are an expert Verilog digital design engineer. "
             "Write clean, standard, synthesizable Verilog HDL code based on the following description. "
@@ -149,8 +147,8 @@ def synthesize_from_description(
             f"Description: {description}"
         )
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = resolved.client.chat.completions.create(
+            model=resolved.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
@@ -161,8 +159,9 @@ def synthesize_from_description(
     except Exception as exc:
         if isinstance(exc, (LLMConfigurationError, RTLValidationError)):
             raise
-        # Fallback to local template match if LLM API call fails
+        # Fallback to local template match if the live LLM API call itself fails
+        # (network error, rate limit, etc.) -- not if credentials are just absent.
         for key, rtl_code in _FALLBACK_TEMPLATES.items():
             if key in description_clean:
                 return rtl_code
-        raise RuntimeError(f"LLM RTL generation failed: {exc}") from exc
+        raise RuntimeError(f"LLM RTL generation failed ({resolved.provider}): {exc}") from exc

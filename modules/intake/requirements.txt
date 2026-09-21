@@ -1,2 +1,5 @@
 # Person D (intake) module-specific dependencies.
 # Yosys is installed as an external CLI tool, not a pip package.
+# llm_rtl.py's real LLM path (see modules/llm_interaction/requirements.txt's
+# note on shared/llm_client.py) needs the same `openai` package.
+openai

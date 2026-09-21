@@ -33,15 +33,25 @@ def test_extract_verilog_code_invalid_raises():
         extract_verilog_code("This is just prose text with no verilog module.")
 
 
-def test_synthesize_from_description_template_fallback():
+def _clear_all_llm_credentials(monkeypatch):
+    """Real credentials (GROQ_API_KEY, and possibly OPENAI_API_KEY/LLM_API_KEY)
+    may genuinely be configured in this environment via .env — a test of the
+    offline/no-credentials fallback path must clear ALL of them, not just
+    one, or it silently starts exercising the real LLM call instead (see
+    modules/intake/NOTES.md-equivalent discussion in modules/llm_interaction/NOTES.md)."""
+    for var in ("GROQ_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_synthesize_from_description_template_fallback(monkeypatch):
+    _clear_all_llm_credentials(monkeypatch)
     rtl = synthesize_from_description("Create an 8-bit counter design", template="counter")
     assert "module counter" in rtl
     assert "endmodule" in rtl
 
 
 def test_synthesize_from_description_missing_key_raises(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    _clear_all_llm_credentials(monkeypatch)
 
     with pytest.raises(LLMConfigurationError):
         synthesize_from_description("Some unknown custom complex accelerator circuit description with no key")

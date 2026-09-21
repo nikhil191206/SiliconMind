@@ -1,2 +1,6 @@
 # Person D (llm_interaction) module-specific dependencies.
-# Fill in the specific LLM SDK once the provider/function-calling API is chosen.
+# LLM provider SDK. Real usage: GROQ_API_KEY (via Groq's OpenAI-compatible
+# endpoint, see shared/llm_client.py) or OPENAI_API_KEY/LLM_API_KEY. Without
+# either, parse_constraint deterministically falls back to a heuristic
+# parser rather than failing outright — see NOTES.md.
+openai

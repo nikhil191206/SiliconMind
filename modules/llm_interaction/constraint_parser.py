@@ -10,7 +10,6 @@ returns True — Person B's generator MUST NOT be called in this case.
 """
 
 import json
-import os
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -156,34 +155,37 @@ def parse_constraint(
     Returns:
         Schema-valid ConstraintObject (Section 3.4).
     """
-    effective_api_key = api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
+    from shared.llm_client import NoLLMCredentialsError, resolve_llm_client
 
-    if not effective_api_key:
+    try:
+        resolved = resolve_llm_client(api_key)
+    except NoLLMCredentialsError:
         return _fallback_parse_heuristic(nl_text, current_placement, graph)
 
     try:
-        import openai
-
-        client = openai.OpenAI(api_key=effective_api_key)
-
         nodes_info = [{"node_id": p.node_id, "x": p.x, "y": p.y} for p in current_placement.placements[:20]]
+        die_info = {"width": graph.die.width, "height": graph.die.height} if graph is not None else None
 
         prompt = (
             "You are a VLSI placement constraint parser. Translate the following user natural-language "
             "placement request into a structured JSON constraint object.\n"
             f"Available placement nodes (sample): {json.dumps(nodes_info)}\n"
+            f"Die area: {json.dumps(die_info)}\n"
             f"User request: '{nl_text}'\n\n"
             "Output JSON with these exact keys:\n"
             "- affected_node_ids: list of int node_ids specified to move\n"
             "- constraint_type: one of ['MOVE_AWAY_FROM', 'MOVE_TOWARD', 'FORBID_ADJACENT', 'FORBID_REGION', 'PREFER_REGION', 'UNCLEAR']\n"
             "- reference_type: one of ['NODE', 'REGION', 'EDGE']\n"
-            "- reference_node_id: int node_id if reference_type is NODE, else null\n"
+            "- reference_node_id: int node_id if reference_type is NODE or EDGE, else null\n"
+            "- reference_region: {\"x_min\": float, \"y_min\": float, \"x_max\": float, \"y_max\": float} if "
+            "reference_type is REGION (infer sensible die-relative bounds from the request, e.g. 'top-left "
+            "corner' or 'near the edge'), else null\n"
             "- strength: 'HARD' or 'SOFT'\n"
             "- confidence: float between 0.0 and 1.0 (set < 0.6 if ambiguous or unclear)\n"
         )
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = resolved.client.chat.completions.create(
+            model=resolved.model,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             temperature=0.0,
@@ -197,9 +199,20 @@ def parse_constraint(
         frozen = [n for n in all_node_ids if n not in affected]
 
         c_type_str = str(parsed.get("constraint_type", "UNCLEAR")).upper()
-
         ref_type_str = str(parsed.get("reference_type", "NODE")).upper()
-        ref_val: Union[int, RegionBoundingBox] = int(parsed.get("reference_node_id", affected[0] if affected else 0))
+
+        ref_val: Union[int, RegionBoundingBox]
+        if ref_type_str == "REGION" and parsed.get("reference_region"):
+            region = parsed["reference_region"]
+            ref_val = RegionBoundingBox(
+                x_min=float(region["x_min"]),
+                y_min=float(region["y_min"]),
+                x_max=float(region["x_max"]),
+                y_max=float(region["y_max"]),
+            )
+        else:
+            ref_node_id = parsed.get("reference_node_id")
+            ref_val = int(ref_node_id) if ref_node_id is not None else (affected[0] if affected else 0)
 
         confidence = float(parsed.get("confidence", 0.9))
 

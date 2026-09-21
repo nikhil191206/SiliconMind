@@ -4,6 +4,7 @@
 pydantic>=2.0,<3.0
 pyyaml>=6.0
 numpy>=1.26
+python-dotenv>=1.0
 
 # Pinned per TECHNICAL.md 1.11: Python 3.11.x, PyTorch 2.x / CUDA 12.1 build.
 # Install torch separately following the CUDA-12.1 wheel index, e.g.:
