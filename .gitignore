@@ -4,6 +4,7 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 !data/processed/build_cache.py
+!data/processed/compute_normalization_stats.py
 
 # Python
 __pycache__/

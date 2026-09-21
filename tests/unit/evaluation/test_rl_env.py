@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -82,3 +84,69 @@ def test_step_after_all_macros_placed_raises():
     env.step(20)
     with pytest.raises(RuntimeError):
         env.step(0)
+
+
+def _brute_force_action_masks(env: MacroPlacementEnv) -> np.ndarray:
+    """The original O(grid_size^2) per-cell implementation, kept here only
+    as a reference oracle for the regression test below -- NOT used at
+    runtime (measured at ~139ms/call on a 64x64 grid; the real
+    implementation now used in action_masks() is a vectorized integral-
+    image version measured at ~1.4ms/call, a ~96x speedup, verified exact
+    against this reference over a full real episode)."""
+    mask = np.zeros(env.grid_size * env.grid_size, dtype=bool)
+    if env._step_idx >= len(env.macro_ids):
+        return mask
+    node_id = env.macro_ids[env._step_idx]
+    for gy in range(env.grid_size):
+        for gx in range(env.grid_size):
+            x0, y0, x1, y1 = env._footprint_cells(node_id, gx, gy)
+            if x1 > env.grid_size or y1 > env.grid_size:
+                continue
+            if not env._occupancy[y0:y1, x0:x1].any():
+                mask[gy * env.grid_size + gx] = True
+    return mask
+
+
+def test_vectorized_action_masks_matches_brute_force_on_mock_design_full_episode():
+    """Regression test for the performance fix found while diagnosing why a
+    real MaskablePPO training run was far too slow to be practical (see
+    experiments/train_rl_baseline.py's module docstring, revision
+    2026-09-21): the original nested-Python-loop action_masks() was
+    ~139ms/call on a real 64x64-grid episode, which over a real
+    500K-timestep run would have cost ~19 hours just on mask computation
+    (measured ~96x speedup with the vectorized replacement, to ~1.4ms/call,
+    with 0 mismatches across all 133 steps of a real Ariane episode).
+    Verifies bit-identical masks at every step of a full episode here on
+    the small mock design (always available, no real-data dependency)."""
+    env = MacroPlacementEnv(make_mock_circuit_graph(), grid_size=32)
+    env.reset(seed=0)
+    rng = np.random.default_rng(0)
+    for _ in range(len(env.macro_ids)):
+        expected = _brute_force_action_masks(env)
+        actual = env.action_masks()
+        assert np.array_equal(actual, expected)
+        valid = np.flatnonzero(expected)
+        action = int(rng.choice(valid)) if len(valid) else int(rng.integers(0, env.grid_size**2))
+        env.step(action)
+
+
+ARIANE_PB = Path("data/raw/ariane_circuit_training/netlist.pb.txt")
+
+
+@pytest.mark.skipif(not ARIANE_PB.exists(), reason="real Ariane circuit_training netlist not present in data/raw/")
+def test_vectorized_action_masks_matches_brute_force_on_real_ariane_episode():
+    """Same regression, on the real 133-macro Ariane design this bug was
+    actually found on -- not a synthetic fixture."""
+    from modules.intake.parsers.protobuf_parser import parse_protobuf_netlist
+
+    graph = parse_protobuf_netlist(ARIANE_PB, design_name="ariane")
+    env = MacroPlacementEnv(graph, grid_size=64)
+    env.reset(seed=0)
+    rng = np.random.default_rng(0)
+    for _ in range(len(env.macro_ids)):
+        expected = _brute_force_action_masks(env)
+        actual = env.action_masks()
+        assert np.array_equal(actual, expected)
+        valid = np.flatnonzero(expected)
+        action = int(rng.choice(valid)) if len(valid) else int(rng.integers(0, env.grid_size**2))
+        env.step(action)

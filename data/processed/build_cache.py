@@ -10,7 +10,7 @@ gitignored) — delete and re-run this script if it's ever out of sync with
 data/raw/.
 
 Usage:
-    python -m data.processed.build_cache [--source ispd02] [--source ariane_circuit_training]
+    python -m data.processed.build_cache [--source ispd02] [--source ispd2015] [--source ariane_circuit_training]
 
 With no --source, processes every recognized source found in data/raw/.
 """
@@ -51,6 +51,19 @@ def _iter_ariane_circuit_training() -> Iterator[Tuple[str, Path]]:
         yield "ariane", pb
 
 
+def _iter_ispd2015_designs() -> Iterator[Tuple[str, list, Path]]:
+    base = DATA_RAW / "ispd2015" / "ispd_2015_contest_benchmark"
+    if not base.is_dir():
+        return
+    for design_dir in sorted(base.iterdir()):
+        if not design_dir.is_dir():
+            continue
+        name = design_dir.name
+        tech, cells, floorplan = design_dir / "tech.lef", design_dir / "cells.lef", design_dir / "floorplan.def"
+        if tech.exists() and cells.exists() and floorplan.exists():
+            yield name, [tech, cells], floorplan
+
+
 def build_ispd02_cache() -> int:
     out_dir = DATA_PROCESSED / "ispd02"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -77,12 +90,26 @@ def build_ariane_circuit_training_cache() -> int:
     return count
 
 
+def build_ispd2015_cache() -> int:
+    out_dir = DATA_PROCESSED / "ispd2015"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for name, lef_paths, floorplan in _iter_ispd2015_designs():
+        t0 = time.time()
+        graph = lefdef_to_circuit_graph(lef_paths, floorplan)
+        _write_graph(graph, out_dir / f"{name}.json")
+        print(f"[ispd2015] {name}: {graph.num_nodes} nodes, {graph.num_hyperedges} hyperedges ({time.time()-t0:.2f}s)")
+        count += 1
+    return count
+
+
 def _write_graph(graph: CircuitGraph, path: Path) -> None:
     path.write_text(graph.model_dump_json(indent=2), encoding="utf-8")
 
 
 SOURCE_BUILDERS = {
     "ispd02": build_ispd02_cache,
+    "ispd2015": build_ispd2015_cache,
     "ariane_circuit_training": build_ariane_circuit_training_cache,
 }
 

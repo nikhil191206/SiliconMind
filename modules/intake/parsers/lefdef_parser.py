@@ -43,7 +43,7 @@ Format notes (ISPD02 IBM* benchmarks specifically):
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from shared.schemas.circuit_graph import CircuitGraph, CircuitHyperedge, CircuitNode, Die, NodeType
 
@@ -61,7 +61,11 @@ class LefMacro:
 def parse_lef(lef_path: Path) -> Dict[str, LefMacro]:
     """Parses MACRO ... SIZE ... PIN ... END <name> blocks into a name -> LefMacro map.
     Ignores everything else in the LEF (layers, vias, sites, spacing rules) —
-    none of that is part of Section 3.1's schema."""
+    none of that is part of Section 3.1's schema. A LEF with zero MACRO
+    blocks (e.g. ISPD2015's tech.lef, which only defines layers/sites) is
+    valid and returns an empty dict — some real benchmark families split
+    the cell library (cells.lef) from the technology file (tech.lef), see
+    parse_lef_library below."""
     text = lef_path.read_text(encoding="utf-8", errors="replace")
     macros: Dict[str, LefMacro] = {}
 
@@ -74,8 +78,20 @@ def parse_lef(lef_path: Path) -> Dict[str, LefMacro]:
         pin_count = len(re.findall(r"^\s*PIN\s+\S+", body, re.MULTILINE))
         macros[name] = LefMacro(name=name, width=width, height=height, pin_count=pin_count)
 
+    return macros
+
+
+def parse_lef_library(lef_paths: List[Path]) -> Dict[str, LefMacro]:
+    """Merges MACRO definitions across one or more LEF files (ISPD02 ships
+    one combined .lef; ISPD2015 splits tech.lef (0 macros, layers only)
+    from cells.lef (the real cell library) — both real, both handled here).
+    Raises if the combined result is still empty, since that means neither
+    file was a usable cell library."""
+    macros: Dict[str, LefMacro] = {}
+    for lef_path in lef_paths:
+        macros.update(parse_lef(lef_path))
     if not macros:
-        raise ValueError(f"no MACRO definitions found in {lef_path} — not a valid cell-library LEF")
+        raise ValueError(f"no MACRO definitions found across {lef_paths!r} — not a valid cell-library LEF set")
     return macros
 
 
@@ -83,9 +99,10 @@ def parse_lef(lef_path: Path) -> Dict[str, LefMacro]:
 class DefComponent:
     name: str
     macro: str
-    x: float  # DEF database units (not yet scaled to microns)
+    x: float  # DEF database units (not yet scaled to microns); 0.0 if is_placed is False
     y: float
     is_fixed: bool
+    is_placed: bool  # False for UNPLACED (ISPD2015's floorplan.def ships components with no coordinates at all)
 
 
 @dataclass
@@ -104,9 +121,9 @@ class ParsedDef:
     nets: List[DefNet]
 
 
-_COMPONENT_LINE = re.compile(
-    r"^\s*-\s+(\S+)\s+(\S+)\s+\+\s+(FIXED|PLACED|COVER)\s*"
-    r"(?:\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)\s+(\S+))?\s*;"
+_COMPONENT_STATEMENT = re.compile(
+    r"-\s+(\S+)\s+(\S+)\s+\+\s+(FIXED|PLACED|COVER|UNPLACED)"
+    r"(?:\s+\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)\s+(\S+))?\s*;"
 )
 
 
@@ -130,19 +147,25 @@ def parse_def(def_path: Path) -> ParsedDef:
     if components_block is None:
         raise ValueError(f"no COMPONENTS block found in {def_path}")
 
+    # Collapsed to single-line-equivalent text before matching: a component
+    # statement can legitimately wrap across multiple physical lines (seen
+    # in ISPD2015's floorplan.def, e.g. "- name macro \n + UNPLACED ;") --
+    # matching per-line like the rest of this parser would silently drop
+    # every such entry instead of erroring, which is worse than being
+    # slightly less efficient here.
+    components_flat = re.sub(r"\s+", " ", components_block.group(1))
     components: List[DefComponent] = []
-    for line in components_block.group(1).splitlines():
-        m = _COMPONENT_LINE.match(line)
-        if not m:
-            continue
+    for m in _COMPONENT_STATEMENT.finditer(components_flat):
         name, macro, status, x, y, _orient = m.groups()
+        is_placed = x is not None
         components.append(
             DefComponent(
                 name=name,
                 macro=macro,
-                x=float(x) if x is not None else 0.0,
-                y=float(y) if y is not None else 0.0,
+                x=float(x) if is_placed else 0.0,
+                y=float(y) if is_placed else 0.0,
                 is_fixed=(status in ("FIXED", "COVER")),
+                is_placed=is_placed,
             )
         )
 
@@ -179,11 +202,14 @@ def parse_def(def_path: Path) -> ParsedDef:
     )
 
 
-def lefdef_to_circuit_graph(lef_path: Path, def_path: Path) -> CircuitGraph:
-    """Combines a LEF cell library and a DEF placement/netlist file into a
-    schema-valid CircuitGraph (Section 3.1). Node order follows DEF
-    COMPONENTS order (0-indexed, contiguous, per the schema)."""
-    macros = parse_lef(lef_path)
+def lefdef_to_circuit_graph(lef_path: Union[Path, List[Path]], def_path: Path) -> CircuitGraph:
+    """Combines one or more LEF cell libraries and a DEF placement/netlist
+    file into a schema-valid CircuitGraph (Section 3.1). Node order follows
+    DEF COMPONENTS order (0-indexed, contiguous, per the schema). Pass a
+    list for `lef_path` when a benchmark splits tech.lef from cells.lef
+    (e.g. ISPD2015) rather than shipping one combined .lef (e.g. ISPD02)."""
+    lef_paths = lef_path if isinstance(lef_path, list) else [lef_path]
+    macros = parse_lef_library(lef_paths)
     parsed_def = parse_def(def_path)
 
     name_to_id: Dict[str, int] = {}

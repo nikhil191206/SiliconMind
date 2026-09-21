@@ -12,19 +12,86 @@ DE-HNN and DeepGate4 consume the hypergraph structure directly (see de_hnn.py
 the two pairwise-message-passing baselines.
 """
 
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
 import torch
+import yaml
 
 from shared.schemas.circuit_graph import CircuitGraph, NodeType
 
 NUM_NODE_FEATURES = 4  # [width, height, pin_count, is_macro]
 
 
-def node_features(graph: CircuitGraph) -> torch.Tensor:
-    """[num_nodes, NUM_NODE_FEATURES] float tensor: width, height, pin_count, is_macro."""
+@dataclass
+class NodeFeatureNormalization:
+    """log1p(mean/std) for width/height/pin_count, computed once from the
+    real training corpus by data/processed/compute_normalization_stats.py
+    and stored in config/shared_config.yaml's encoder_defaults.
+
+    Why this exists: raw width/height/pin_count span orders of magnitude
+    across real designs (ISPD02 standard cells ~0.01-0.5 microns, ISPD2015
+    up to ~77 microns, Ariane's real macros up to ~30 microns) -- feeding
+    that straight into a GNN's input layer is the same class of problem as
+    the unnormalized-reward bug found in experiments/train_rl_baseline.py
+    (see its module docstring): numerically unstable training, not a
+    correctness bug you'd catch from a shape/schema test."""
+
+    log_width_mean: float
+    log_width_std: float
+    log_height_mean: float
+    log_height_std: float
+    log_pin_count_mean: float
+    log_pin_count_std: float
+
+    @classmethod
+    def from_shared_config(cls, config_path: Optional[Path] = None) -> "NodeFeatureNormalization":
+        path = config_path or Path(__file__).resolve().parents[2] / "config" / "shared_config.yaml"
+        with open(path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        try:
+            stats = config["encoder_defaults"]["node_feature_normalization"]
+        except KeyError as exc:
+            raise KeyError(
+                "config/shared_config.yaml has no encoder_defaults.node_feature_normalization block yet -- "
+                "run data/processed/compute_normalization_stats.py and paste its output in before "
+                "training any encoder on real data."
+            ) from exc
+        return cls(
+            log_width_mean=stats["log_width_mean"],
+            log_width_std=stats["log_width_std"],
+            log_height_mean=stats["log_height_mean"],
+            log_height_std=stats["log_height_std"],
+            log_pin_count_mean=stats["log_pin_count_mean"],
+            log_pin_count_std=stats["log_pin_count_std"],
+        )
+
+
+def node_features(graph: CircuitGraph, normalization: Optional[NodeFeatureNormalization] = None) -> torch.Tensor:
+    """[num_nodes, NUM_NODE_FEATURES] float tensor: width, height, pin_count, is_macro.
+
+    Without `normalization`, features are raw (die/library units) -- fine
+    for schema/shape unit tests against small mock/toy graphs, where
+    absolute scale doesn't matter and no cross-design comparison happens.
+    Real training on real designs MUST pass real stats (see
+    NodeFeatureNormalization.from_shared_config) -- there is no silent
+    fallback to raw features for a real training run; the caller has to
+    explicitly choose not to normalize, which should never happen outside
+    a toy/test context."""
     rows = []
     for node in graph.nodes:
         is_macro = 1.0 if node.type == NodeType.MACRO else 0.0
-        rows.append([node.width, node.height, float(node.pin_count), is_macro])
+        if normalization is None:
+            width, height, pin_count = node.width, node.height, float(node.pin_count)
+        else:
+            width = (math.log1p(node.width) - normalization.log_width_mean) / normalization.log_width_std
+            height = (math.log1p(node.height) - normalization.log_height_mean) / normalization.log_height_std
+            pin_count = (
+                math.log1p(node.pin_count) - normalization.log_pin_count_mean
+            ) / normalization.log_pin_count_std
+        rows.append([width, height, pin_count, is_macro])
     return torch.tensor(rows, dtype=torch.float32)
 
 
