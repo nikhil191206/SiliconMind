@@ -27,6 +27,7 @@ experiments/results/*
 *.pt
 *.pth
 *.ckpt
+wandb/
 
 # Editor / OS
 .vscode/
