@@ -1,0 +1,10 @@
+# Backend (FastAPI) dependencies — wires modules/* together into HTTP APIs.
+fastapi
+uvicorn[standard]
+httpx   # required by fastapi.testclient.TestClient, used in tests/integration/
+
+# Optional: only needed if OPENAI_API_KEY/LLM_API_KEY is set to use the real
+# LLM-backed constraint parser / RTL drafting instead of the deterministic
+# offline fallback (modules/llm_interaction/constraint_parser.py,
+# modules/intake/llm_rtl.py both work without this — see their NOTES.md).
+openai

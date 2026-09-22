@@ -129,6 +129,10 @@ class SpatialGuidance(GuidanceTerm):
             z = z.detach().requires_grad_(True)
             loss = torch.zeros((), dtype=z.dtype)
             touched = False
+            # Length scale for the repulsive potential below, in real die
+            # units squared — ties the potential's falloff to the actual die
+            # size rather than an arbitrary constant.
+            die_scale_sq = graph.die.width**2 + graph.die.height**2
             for directive in self.directives:
                 idx = [self.node_id_to_index[nid] for nid in directive.node_ids if nid in self.node_id_to_index]
                 if not idx:
@@ -142,8 +146,20 @@ class SpatialGuidance(GuidanceTerm):
                 else:
                     continue
                 dist_sq = ((pts - ref) ** 2).sum(dim=-1)
-                sign = -1.0 if directive.mode in ("away_from", "avoid_region") else 1.0
-                loss = loss + sign * directive.weight * dist_sq.sum()
+                if directive.mode in ("away_from", "avoid_region"):
+                    # Repulsion must be a BOUNDED, saturating potential, not
+                    # a raw -dist_sq: minimizing an unbounded -dist_sq has no
+                    # optimum, so 50 Euler steps of gradient descent on it
+                    # diverge to +/-inf and then NaN (confirmed via
+                    # tests/unit/generator/test_guidance.py's regression
+                    # test). exp(-dist_sq / scale) is bounded in (0, 1],
+                    # already at its minimum-desirable value as dist_sq -> 0,
+                    # and its gradient vanishes as distance grows instead of
+                    # blowing up — descending it pushes points apart without
+                    # ever diverging.
+                    loss = loss + directive.weight * torch.exp(-dist_sq / die_scale_sq).sum()
+                else:
+                    loss = loss + directive.weight * dist_sq.sum()
                 touched = True
             if not touched:
                 return torch.zeros_like(z)

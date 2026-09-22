@@ -396,19 +396,24 @@ class NetlistEncoder(ABC):
 
 **Module path:** `modules/generator/`
 
-**Interface:**
+**Interface (amended 2026-09-18 — see the ruling note after Section 4.C for why):**
 ```python
 class PlacementGenerator:
     def generate(
         self,
         encoder_output: EncoderOutput,
+        graph: CircuitGraph,
         frozen_placements: Optional[List[FrozenNode]] = None,
         guidance_terms: Optional[GuidanceConfig] = None,
         seed: int = 0,
     ) -> PlacementJSON:
         """frozen_placements entries are EXCLUDED from the generative variable
         tensor entirely — implemented via index masking before the
-        sampling loop begins, not via loss weighting. See Section 1.7."""
+        sampling loop begins, not via loss weighting. See Section 1.7.
+        `graph` supplies design_name, die dimensions, node geometry, and
+        hyperedge connectivity — none of which EncoderOutput (Section 3.2)
+        carries, and all of which are required to produce a schema-valid
+        PlacementJSON (Section 3.3) or to run legality/wirelength guidance."""
 ```
 
 **Default starting hyperparameters:**
@@ -428,19 +433,25 @@ class PlacementGenerator:
 
 **Module path:** `modules/evaluation/`
 
-**Interface:**
+**Interface (amended 2026-09-18 — see the ruling note below):**
 ```python
-def legalize_and_score(placement: PlacementJSON) -> Tuple[PlacementJSON, MetricsObject]:
+def legalize_and_score(
+    placement: PlacementJSON, graph: CircuitGraph, work_dir: Optional[Path] = None
+) -> Tuple[PlacementJSON, MetricsObject]:
     """Implements Section 3.5. The single source of truth for HPWL,
     congestion overflow, and legality violations — see Section 1.4 for
     the exact formulas. Wraps DREAMPlace/OpenROAD; does not reimplement
-    routing estimation."""
+    routing estimation. `graph` supplies node width/height/type and
+    hyperedge connectivity, neither of which PlacementJSON (Section 3.3)
+    carries on its own — required to compute any of the three metrics."""
 
 def run_dreamplace_baseline(graph: CircuitGraph) -> PlacementJSON: ...
 def run_rl_baseline(graph: CircuitGraph, checkpoint_path: str) -> PlacementJSON: ...
 ```
 
 **RL baseline reproduction:** adapt an open MaskPlace/EfficientPlace-style implementation (or Google's open-sourced Circuit Training repo) rather than reimplementing from the paper text alone — the goal is a faithful, fair baseline, not a novel RL contribution.
+
+**Ruling on the `graph: CircuitGraph` parameter (logged here and in `shared/schemas/CHANGELOG.md`, 2026-09-18):** while implementing 4.B and 4.C, Persons B and C independently hit the same gap — `EncoderOutput` (3.2) carries only embeddings + `node_id_order`, and `PlacementJSON` (3.3) carries only `node_id`/`x`/`y`/`orientation`, so neither `generate()` nor `legalize_and_score()` can produce a schema-valid result, run legality/wirelength guidance, or compute HPWL/legality without also having node geometry, die dimensions, and hyperedge connectivity in hand. Two fixes were on the table: (a) extend `EncoderOutput` itself with `design_name`/`die` (jointly owned by A and B per 3.2, needing A's sign-off), or (b) pass `graph: CircuitGraph` as an explicit extra parameter at each call site. B and C both implemented and unit-tested (b) independently (`modules/generator/generator.py`, `modules/evaluation/legalizer.py`) before this was reconciled. **Ruling: (b) is adopted project-wide, formally, as of this edit** — Person A (joint owner of 3.2) signs off on leaving `EncoderOutput` unchanged rather than growing it to duplicate data `CircuitGraph` already carries; every pipeline stage past the encoder receives `graph` alongside whatever stage-specific object it's operating on. This section and 4.B above now reflect the interfaces exactly as implemented and tested, not the original literal signatures.
 
 **Statistical testing utility (used by all four members when reporting any comparison):**
 ```python

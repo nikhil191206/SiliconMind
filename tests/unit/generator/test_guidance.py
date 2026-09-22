@@ -62,6 +62,46 @@ def test_spatial_guidance_away_from_increases_distance_direction():
     assert torch.dot(descent, away_vector) > 0
 
 
+def test_spatial_guidance_repulsion_gradient_vanishes_far_away():
+    """Regression test for the NaN bug found during A/B/C/D integration
+    (2026-09-18, see modules/generator/NOTES.md §5): the old "away_from"
+    objective was an unbounded -dist_sq, whose gradient magnitude GROWS
+    without bound as distance increases — that's exactly what made 50 Euler
+    steps diverge to inf/NaN. The fixed, bounded potential must do the
+    opposite: gradient magnitude shrinks toward zero as distance grows."""
+    graph = make_mock_circuit_graph()
+    node_id_to_index = {n.node_id: i for i, n in enumerate(graph.nodes)}
+    directive = SpatialGuidanceDirective(node_ids=[3], mode="away_from", reference_point=(10.0, 10.0), weight=1.0)
+    guidance = SpatialGuidance([directive], node_id_to_index)
+
+    z_near = torch.zeros(graph.num_nodes, 2)
+    z_near[3] = torch.tensor([15.0, 15.0])  # close to the reference point
+    z_far = torch.zeros(graph.num_nodes, 2)
+    z_far[3] = torch.tensor([10_000.0, 10_000.0])  # far away
+
+    grad_near = guidance.gradient(z_near, graph)[3]
+    grad_far = guidance.gradient(z_far, graph)[3]
+
+    assert torch.isfinite(grad_far).all()
+    assert grad_near.norm() > grad_far.norm()
+
+
+def test_spatial_guidance_self_reference_produces_zero_gradient_not_nan():
+    """A degenerate self-referential constraint (affected node's own current
+    position used as its own reference — e.g. from the constraint-parser bug
+    this regression test is paired with, modules/llm_interaction/NOTES.md)
+    must produce a well-defined zero gradient, not NaN."""
+    graph = make_mock_circuit_graph()
+    node_id_to_index = {n.node_id: i for i, n in enumerate(graph.nodes)}
+    z = torch.zeros(graph.num_nodes, 2)
+    z[0] = torch.tensor([42.0, 17.0])
+    directive = SpatialGuidanceDirective(node_ids=[0], mode="away_from", reference_point=(42.0, 17.0), weight=1.0)
+
+    grad = SpatialGuidance([directive], node_id_to_index).gradient(z, graph)
+    assert torch.isfinite(grad).all()
+    assert torch.allclose(grad[0], torch.zeros(2), atol=1e-6)
+
+
 def test_congestion_guidance_penalizes_dense_cluster():
     graph = make_mock_circuit_graph()
     # Piled in a corner rather than the exact die center: a perfectly
