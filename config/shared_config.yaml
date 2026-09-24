@@ -139,6 +139,17 @@ generator_defaults:
     legality: 1.0
     wirelength: 1.0
     congestion: 1.0
+  # Formalizes modules/generator/NOTES.md's old §1.3: Section 4.B never
+  # pinned an optimizer for B the way Section 4.A does for the encoders,
+  # so modules/generator/training.py's Trainer had been reusing this exact
+  # Adam/1e-3/cosine convention as an unstated Python-level default. Same
+  # values, now the single source of truth here per Section 5.2, mirroring
+  # encoder_defaults.optimizer above exactly rather than inventing a
+  # separate one.
+  optimizer:
+    type: adam
+    initial_lr: 1.0e-3
+    lr_schedule: cosine_decay
 
 evaluation:
   # TECHNICAL.md Section 1.9
