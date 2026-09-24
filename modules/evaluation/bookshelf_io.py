@@ -29,6 +29,19 @@ from shared.schemas.placement import GenerationMetadata, Orientation, PlacementE
 
 _NODE_NAME_PREFIX = "o"
 
+# Bookshelf/DREAMPlace's parser requires INTEGER database units throughout
+# (.nodes/.pl coordinates, .scl row Coordinate/Height) -- confirmed the hard
+# way against a real DREAMPlace run: writing raw micron floats (e.g. a
+# 0.01-micron standard-cell height) crashed its .scl parser with "syntax
+# error, unexpected double, expecting integer". This scale converts real
+# micron values to integer database units losslessly enough for this
+# project's real designs (down to 0.01-micron ISPD02 standard cells) while
+# staying well within a safe integer range for die sizes up to hundreds of
+# microns. Applied consistently across every writer below and undone in
+# read_bookshelf_placement -- a mismatched scale on read vs. write would
+# silently corrupt every coordinate by a constant factor.
+BOOKSHELF_SCALE = 1000
+
 
 def _node_name(node_id: int) -> str:
     return f"{_NODE_NAME_PREFIX}{node_id}"
@@ -49,7 +62,9 @@ def _write_nodes_file(graph: CircuitGraph, path: Path) -> None:
         "",
     ]
     for node in graph.nodes:
-        lines.append(f"{_node_name(node.node_id)} {node.width:g} {node.height:g}")
+        w = round(node.width * BOOKSHELF_SCALE)
+        h = round(node.height * BOOKSHELF_SCALE)
+        lines.append(f"{_node_name(node.node_id)} {w} {h}")
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -80,7 +95,9 @@ def _write_nets_file(graph: CircuitGraph, path: Path) -> None:
 def _write_pl_file(graph: CircuitGraph, placement: PlacementJSON, path: Path) -> None:
     lines = ["UCLA pl 1.0", ""]
     for entry in placement.placements:
-        lines.append(f"{_node_name(entry.node_id)} {entry.x:g} {entry.y:g} : {entry.orientation.value}")
+        x = round(entry.x * BOOKSHELF_SCALE)
+        y = round(entry.y * BOOKSHELF_SCALE)
+        lines.append(f"{_node_name(entry.node_id)} {x} {y} : {entry.orientation.value}")
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -89,18 +106,25 @@ def _write_scl_file(graph: CircuitGraph, path: Path) -> None:
     row_height = min(std_cell_heights) if std_cell_heights else graph.die.height
     num_rows = max(1, math.floor(graph.die.height / row_height))
 
+    scaled_row_height = round(row_height * BOOKSHELF_SCALE)
+    # Sitewidth is 1 scaled unit (an approximation, per this module's own
+    # docstring on synthesized .scl geometry) -- NumSites must then be the
+    # scaled die width itself so num_sites * sitewidth actually covers the
+    # real die, not the old unscaled die.width (which would leave each row
+    # covering only a BOOKSHELF_SCALE'th of the real die).
+    num_sites = math.floor(graph.die.width * BOOKSHELF_SCALE)
     lines = ["UCLA scl 1.0", f"NumRows : {num_rows}", ""]
     for row_index in range(num_rows):
-        y = row_index * row_height
+        y = round(row_index * row_height * BOOKSHELF_SCALE)
         lines += [
             "CoreRow Horizontal",
-            f"  Coordinate : {y:g}",
-            f"  Height : {row_height:g}",
+            f"  Coordinate : {y}",
+            f"  Height : {scaled_row_height}",
             "  Sitewidth : 1",
             "  Sitespacing : 1",
             "  Siteorient : 1",
             "  Sitesymmetry : 1",
-            f"  SubrowOrigin : 0  NumSites : {math.floor(graph.die.width)}",
+            f"  SubrowOrigin : 0  NumSites : {num_sites}",
             "End",
         ]
     path.write_text("\n".join(lines) + "\n")
@@ -114,9 +138,13 @@ def _write_aux_file(design_name: str, path: Path) -> None:
 
 
 def _write_wts_file(graph: CircuitGraph, path: Path) -> None:
+    """Bookshelf .wts lists per-NET weights, not per-node ones (confirmed
+    the hard way: DREAMPlace's real reader looks up each name here in its
+    net-name table and asserts if the lookup fails) -- net names must match
+    _write_nets_file's own "net<net_id>" convention exactly."""
     lines = ["UCLA wts 1.0", ""]
-    for node in graph.nodes:
-        lines.append(f"{_node_name(node.node_id)} 1")
+    for hyperedge in graph.hyperedges:
+        lines.append(f"net{hyperedge.net_id} 1")
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -171,8 +199,12 @@ def read_bookshelf_placement(pl_path: Path, design_name: str, model_variant: str
         entries.append(
             PlacementEntry(
                 node_id=_node_id_from_name(name),
-                x=float(x_str),
-                y=float(y_str),
+                # Undo the same BOOKSHELF_SCALE the writers applied -- real
+                # DREAMPlace output is itself in these scaled integer units,
+                # not real microns, so this must invert write_bookshelf's
+                # scaling exactly, not just "look like" a reasonable unit.
+                x=float(x_str) / BOOKSHELF_SCALE,
+                y=float(y_str) / BOOKSHELF_SCALE,
                 orientation=Orientation(orientation_token),
             )
         )
