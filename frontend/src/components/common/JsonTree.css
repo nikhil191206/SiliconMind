@@ -1,0 +1,48 @@
+.jt {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--neutral-950);
+  color: #e5e5e5;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.jt code {
+  display: block;
+}
+
+.jt-row {
+  white-space: pre;
+}
+
+.jt-toggle {
+  width: 14px;
+  margin-left: -14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #737373;
+  cursor: pointer;
+  font: inherit;
+}
+
+.jt-toggle:hover {
+  color: #fff;
+}
+
+.jt-summary {
+  color: #737373;
+  font-style: italic;
+}
+
+.jt-more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #93c5fd;
+  cursor: pointer;
+  font: inherit;
+}

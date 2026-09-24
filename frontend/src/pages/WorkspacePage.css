@@ -1,0 +1,33 @@
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+.workspace-banners {
+  flex: none;
+}
+
+.workspace-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgb(102 158 240 / 0.05), transparent 70%),
+    var(--color-bg);
+}
+
+/* Review fills the viewport; its own panes scroll. */
+.workspace-main.is-review {
+  display: flex;
+  overflow: hidden;
+}
+
+@media (max-width: 1080px) {
+  .workspace-main.is-review {
+    overflow-y: auto;
+    display: block;
+  }
+}

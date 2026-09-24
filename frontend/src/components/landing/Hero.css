@@ -1,0 +1,128 @@
+.hero {
+  position: relative;
+  padding: clamp(32px, 6vw, 72px) 0 clamp(40px, 6vw, 80px);
+  overflow: hidden;
+}
+
+/* Soft rainbow haze behind the 3D stack. */
+.hero::before {
+  content: "";
+  position: absolute;
+  right: -10%;
+  top: 8%;
+  width: min(760px, 70vw);
+  aspect-ratio: 1;
+  background:
+    radial-gradient(closest-side, rgb(102 158 240 / 0.14), transparent 70%) 20% 30% / 60% 60% no-repeat,
+    radial-gradient(closest-side, rgb(252 166 92 / 0.12), transparent 70%) 70% 60% / 60% 60% no-repeat,
+    radial-gradient(closest-side, rgb(128 217 199 / 0.12), transparent 70%) 40% 80% / 55% 55% no-repeat;
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.hero-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: clamp(16px, 4vw, 48px);
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rainbow);
+  box-shadow: 0 0 0 4px rgb(102 158 240 / 0.12);
+}
+
+.hero-title {
+  text-wrap: balance;
+}
+
+.hero-title-soft {
+  color: var(--neutral-400);
+}
+
+.hero-lead {
+  text-wrap: pretty;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.hero-pipeline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-soft);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.hero-pipeline svg {
+  color: var(--neutral-400);
+}
+
+.hero-pipeline-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ok);
+}
+
+.hero-visual {
+  position: relative;
+  height: clamp(420px, 48vw, 640px);
+}
+
+.hero-visual-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  translate: -50% 0;
+  font-size: 0.6875rem;
+  color: var(--color-faint);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    order: -1;
+    height: min(78vw, 440px);
+    margin-bottom: -8px;
+  }
+
+  .hero-visual-caption {
+    white-space: normal;
+    text-align: center;
+    width: 90%;
+  }
+}

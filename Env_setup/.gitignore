@@ -1,0 +1,41 @@
+# Data (large, real, never committed — folder structure via .gitkeep instead)
+data/raw/*
+!data/raw/*/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/build_cache.py
+!data/processed/compute_normalization_stats.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Experiment outputs (checkpoints, large binaries — W&B run IDs/config stay, weights don't)
+experiments/results/*
+!experiments/results/.gitkeep
+*.pt
+*.pth
+*.ckpt
+wandb/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.local

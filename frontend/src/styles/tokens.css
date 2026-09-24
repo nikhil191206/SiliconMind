@@ -1,0 +1,122 @@
+/*
+ * Design tokens.
+ *
+ * Typography and neutral scale follow rerun.io's own tokens (system sans for
+ * text, JetBrains Mono for code/labels, weight 450-550 headings with slightly
+ * negative tracking). Light theme only, by design: white canvas, near-black
+ * ink, hairline neutral borders. Colour is reserved for two jobs:
+ *   1. the "rainbow" palette (identical to the 3D hero shader), used sparingly
+ *      as a signature accent;
+ *   2. status (verified / unverified / internal error), which is ALWAYS paired
+ *      with text + an icon (FRONTEND_SPEC.md §10), never colour alone.
+ */
+:root {
+  /* ---- Type ---------------------------------------------------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
+    Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", monospace;
+
+  --h1-size: clamp(2.5rem, 7vw + 1rem, 4.25rem);
+  --h1-weight: 450;
+  --h1-leading: 1;
+  --h1-tracking: -0.01em;
+
+  --h2-size: clamp(2rem, 4vw + 1rem, 3rem);
+  --h2-weight: 500;
+  --h2-leading: 1.1;
+  --h2-tracking: -0.02em;
+
+  --h3-size: clamp(1.625rem, 2.5vw + 1rem, 2.25rem);
+  --h3-weight: 500;
+  --h3-leading: 1.15;
+  --h3-tracking: -0.01em;
+
+  --h5-size: 1.25rem;
+  --h5-weight: 550;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --caption-tracking: 0.2em;
+
+  /* ---- Neutrals (Tailwind neutral scale, as used by rerun.io) --------- */
+  --neutral-50: #fafafa;
+  --neutral-100: #f5f5f5;
+  --neutral-200: #e5e5e5;
+  --neutral-300: #d4d4d4;
+  --neutral-400: #a3a3a3;
+  --neutral-500: #737373;
+  --neutral-600: #525252;
+  --neutral-700: #404040;
+  --neutral-800: #262626;
+  --neutral-950: #0a0a0a;
+
+  --color-bg: #ffffff;
+  --color-bg-soft: var(--neutral-50);
+  --color-surface: #ffffff;
+  --color-fg: var(--neutral-950);
+  --color-muted: var(--neutral-600);
+  --color-faint: var(--neutral-500);
+  --color-subtle: var(--neutral-200);
+  --color-border: var(--neutral-300);
+  --color-border-soft: var(--neutral-200);
+  --color-primary: var(--color-fg);
+  --color-on-primary: #ffffff;
+  --color-focus: #3b82f6;
+
+  /* ---- Signature rainbow (same stops as the hero GLSL) ---------------- */
+  --rb-sky: #669ef0;
+  --rb-teal: #80d9c7;
+  --rb-yellow: #f7ed8c;
+  --rb-peach: #fca65c;
+  --rb-red: #f75c6b;
+  --rainbow: linear-gradient(
+    90deg,
+    var(--rb-sky),
+    var(--rb-teal),
+    var(--rb-yellow),
+    var(--rb-peach),
+    var(--rb-red)
+  );
+
+  /* ---- Status ---------------------------------------------------------- */
+  --ok: #059669;
+  --ok-bg: #ecfdf5;
+  --ok-border: #a7f3d0;
+  --warn: #b45309;
+  --warn-bg: #fffbeb;
+  --warn-border: #fcd34d;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fca5a5;
+  --info: #2563eb;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --demo: #7c3aed;
+  --demo-bg: #f5f3ff;
+  --demo-border: #c4b5fd;
+
+  /* ---- Canvas (placement visualizer) ----------------------------------- */
+  --canvas-bg: #fbfbfa;
+  --canvas-die: #0a0a0a;
+  --canvas-macro-fill: #e7e6e3;
+  --canvas-macro-stroke: #262626;
+  --canvas-cell: #8a8a8a;
+  --canvas-grid: #ecebe8;
+
+  /* ---- Shape / space / motion ----------------------------------------- */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --container: 72rem;
+  --gutter: clamp(16px, 4vw, 40px);
+  --header-h: 60px;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -8px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 2px 4px rgb(0 0 0 / 0.04), 0 24px 60px -20px rgb(0 0 0 / 0.18);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-expo: cubic-bezier(0.19, 1, 0.22, 1);
+}

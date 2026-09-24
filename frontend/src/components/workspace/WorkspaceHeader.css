@@ -1,0 +1,67 @@
+.ws-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-border-soft);
+  background: var(--color-surface);
+}
+
+.ws-design {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-muted);
+}
+
+.ws-design-sep {
+  color: var(--neutral-300);
+  font-size: 1.25rem;
+  font-weight: 300;
+}
+
+.ws-design-name {
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-conn-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.ws-conn-dot.is-demo {
+  background: var(--demo);
+}
+
+.ws-key-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .ws-hide-sm,
+  .ws-header .badge {
+    display: none;
+  }
+
+  .ws-logo .logo-word {
+    display: none;
+  }
+}
