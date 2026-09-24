@@ -1,0 +1,42 @@
+/* Shared landing-page section rhythm. */
+
+.section {
+  padding: clamp(72px, 10vw, 136px) 0;
+  position: relative;
+}
+
+.section + .section {
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.section-soft {
+  background: var(--color-bg-soft);
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 44rem;
+  margin-bottom: clamp(36px, 5vw, 64px);
+}
+
+.section-head.is-center {
+  align-items: center;
+  text-align: center;
+  margin-inline: auto;
+}
+
+.section-head .h2 {
+  text-wrap: balance;
+}
+
+/* Rerun-style dotted/grid backdrop for visual panels. */
+.grid-backdrop {
+  background-color: var(--canvas-bg);
+  background-image:
+    linear-gradient(var(--canvas-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}

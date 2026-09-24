@@ -1,0 +1,67 @@
+.cta {
+  padding-top: clamp(48px, 7vw, 96px);
+}
+
+.cta-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  padding: clamp(28px, 5vw, 56px);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* 1px rainbow border via mask. */
+.cta-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--rainbow);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.cta-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(40% 60% at 85% 50%, rgb(252 166 92 / 0.12), transparent 70%),
+    radial-gradient(40% 60% at 70% 30%, rgb(102 158 240 / 0.1), transparent 70%);
+}
+
+.cta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cta-actions {
+  margin-top: 8px;
+}
+
+.cta-visual {
+  height: 260px;
+}
+
+@media (max-width: 760px) {
+  .cta-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .cta-visual {
+    height: 200px;
+    order: -1;
+  }
+}

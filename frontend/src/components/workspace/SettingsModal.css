@@ -1,0 +1,65 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-reason {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--info-border);
+  background: var(--info-bg);
+  color: #1e3a8a;
+  font-size: var(--text-sm);
+}
+
+.settings-reason svg {
+  margin-top: 3px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-base);
+  font-weight: 550;
+}
+
+.settings-key {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-switch {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.settings-switch input {
+  margin-top: 3px;
+  accent-color: var(--neutral-950);
+  width: 16px;
+  height: 16px;
+}
+
+.settings-switch > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings .hint svg {
+  display: inline;
+  vertical-align: -1px;
+}

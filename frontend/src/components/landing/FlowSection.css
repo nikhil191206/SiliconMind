@@ -1,0 +1,137 @@
+.flow-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(32px, 5vw, 72px);
+  align-items: center;
+}
+
+.flow-grid .section-head {
+  margin-bottom: 28px;
+}
+
+.flow-eq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.flow-eq-row {
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+
+.flow-eq-row sub {
+  font-size: 0.65em;
+}
+
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 6px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--color-border-soft);
+  list-style: none;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.flow-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.flow-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.flow-swatch.is-noise {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neutral-400);
+}
+
+.flow-swatch.is-target {
+  background: var(--neutral-800);
+}
+
+.flow-swatch.is-path {
+  height: 0;
+  border-top: 1.5px dashed var(--neutral-400);
+  border-radius: 0;
+}
+
+.flow-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-canvas-wrap {
+  position: relative;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.flow-canvas {
+  width: 100%;
+  aspect-ratio: 10 / 7.4;
+}
+
+.flow-tag {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.85);
+  border: 1px solid var(--color-border-soft);
+  font-size: 0.625rem;
+  color: var(--color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.flow-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-slider {
+  flex: 1;
+  display: flex;
+}
+
+.flow-slider input {
+  width: 100%;
+  accent-color: var(--neutral-950);
+}
+
+.flow-t {
+  min-width: 64px;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .flow-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .flow-controls .btn-ghost {
+    display: none;
+  }
+}
