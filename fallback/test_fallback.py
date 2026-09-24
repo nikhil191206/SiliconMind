@@ -16,6 +16,19 @@ from shared.metrics.geometry import node_bbox
 client = TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _force_offline_fallback(monkeypatch):
+    """This file pins the OFFLINE, deterministic fallback's own behavior
+    (FALLBACK.md's honesty guarantees) -- server.py now prefers the real
+    Groq/OpenAI LLM for RTL drafting and edit parsing whenever a key is
+    configured (a real, intentional feature, not something these tests
+    should exercise), so these tests force the regex/template path
+    regardless of what's in this environment's real .env, matching what
+    they were actually written to verify."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
 @pytest.fixture(scope="module")
 def small():
     graph = client.get("/api/fallback/samples/small").json()

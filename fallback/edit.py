@@ -275,10 +275,16 @@ def summarize(parsed: Parsed, graph: CircuitGraph, report: DiffReport, hpwl_befo
     c = parsed.constraint
     kinds = {n.node_id: ("macro" if n.type == NodeType.MACRO else "cell") for n in graph.nodes}
     what = ", ".join(f"{kinds[i]} {i}" for i in c.affected_node_ids[:6]) or "no nodes"
+    # reference_node is None for a region-derived reference (e.g. a
+    # ReferenceType.EDGE reference re-derived as a region -- see
+    # fallback/server.py's _parsed_from_llm_constraint) even for a
+    # node-shaped constraint_type like MOVE_TOWARD, so these fall back to
+    # "the requested area" rather than the literal "node None".
+    node_ref = f"node {parsed.reference_node}" if parsed.reference_node is not None else "the requested area"
     verb = {
-        ConstraintType.MOVE_AWAY_FROM: f"moved away from node {parsed.reference_node}",
-        ConstraintType.MOVE_TOWARD: f"moved toward node {parsed.reference_node}",
-        ConstraintType.FORBID_ADJACENT: f"kept from being adjacent to node {parsed.reference_node}",
+        ConstraintType.MOVE_AWAY_FROM: f"moved away from {node_ref}",
+        ConstraintType.MOVE_TOWARD: f"moved toward {node_ref}",
+        ConstraintType.FORBID_ADJACENT: f"kept from being adjacent to {node_ref}",
         ConstraintType.PREFER_REGION: f"moved into the {parsed.direction or 'requested'} region",
         ConstraintType.FORBID_REGION: f"kept out of the {parsed.direction or 'requested'} region",
     }.get(c.constraint_type, "edited")
