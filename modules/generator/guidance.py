@@ -48,12 +48,12 @@ class LegalityGuidance(GuidanceTerm):
     def gradient(self, z: torch.Tensor, graph: CircuitGraph) -> torch.Tensor:
         with torch.enable_grad():  # guidance is called from inside sample()'s @torch.no_grad()
             z = z.detach().requires_grad_(True)
-            half_extents = torch.tensor([[n.width / 2, n.height / 2] for n in graph.nodes], dtype=z.dtype)
+            half_extents = torch.tensor([[n.width / 2, n.height / 2] for n in graph.nodes], dtype=z.dtype, device=z.device)
             delta = z.unsqueeze(0) - z.unsqueeze(1)  # [N,N,2]
             overlap = torch.relu((half_extents.unsqueeze(0) + half_extents.unsqueeze(1)) - delta.abs())
             pair_penalty = overlap[..., 0] * overlap[..., 1]  # [N,N] area-like overlap
             n = z.shape[0]
-            pair_penalty = pair_penalty.masked_fill(torch.eye(n, dtype=torch.bool), 0.0)
+            pair_penalty = pair_penalty.masked_fill(torch.eye(n, dtype=torch.bool, device=z.device), 0.0)
             loss = pair_penalty.sum() / 2  # each pair counted twice
             (grad,) = torch.autograd.grad(loss, z)
         return grad.detach()
@@ -69,7 +69,7 @@ class WirelengthGuidance(GuidanceTerm):
     def gradient(self, z: torch.Tensor, graph: CircuitGraph) -> torch.Tensor:
         with torch.enable_grad():
             z = z.detach().requires_grad_(True)
-            loss = torch.zeros((), dtype=z.dtype)
+            loss = torch.zeros((), dtype=z.dtype, device=z.device)
             for hyperedge in graph.hyperedges:
                 node_ids = list(hyperedge.sink_nodes)
                 if hyperedge.driver_node is not None:
@@ -100,8 +100,8 @@ class CongestionGuidance(GuidanceTerm):
             z = z.detach().requires_grad_(True)
             g = self.grid_size
             die_w, die_h = graph.die.width, graph.die.height
-            xs = torch.linspace(0, die_w, g)
-            ys = torch.linspace(0, die_h, g)
+            xs = torch.linspace(0, die_w, g, device=z.device)
+            ys = torch.linspace(0, die_h, g, device=z.device)
             grid = torch.stack(torch.meshgrid(xs, ys, indexing="ij"), dim=-1).reshape(-1, 2)  # [g*g,2]
             sigma_x, sigma_y = die_w / g, die_h / g
             diff = z.unsqueeze(1) - grid.unsqueeze(0)  # [N,g*g,2]
@@ -127,7 +127,7 @@ class SpatialGuidance(GuidanceTerm):
     def gradient(self, z: torch.Tensor, graph: CircuitGraph) -> torch.Tensor:
         with torch.enable_grad():
             z = z.detach().requires_grad_(True)
-            loss = torch.zeros((), dtype=z.dtype)
+            loss = torch.zeros((), dtype=z.dtype, device=z.device)
             touched = False
             # Length scale for the repulsive potential below, in real die
             # units squared — ties the potential's falloff to the actual die
@@ -139,10 +139,10 @@ class SpatialGuidance(GuidanceTerm):
                     continue
                 pts = z[idx]
                 if directive.reference_point is not None:
-                    ref = torch.tensor(directive.reference_point, dtype=z.dtype)
+                    ref = torch.tensor(directive.reference_point, dtype=z.dtype, device=z.device)
                 elif directive.reference_region is not None:
                     r = directive.reference_region
-                    ref = torch.tensor([(r.x_min + r.x_max) / 2, (r.y_min + r.y_max) / 2], dtype=z.dtype)
+                    ref = torch.tensor([(r.x_min + r.x_max) / 2, (r.y_min + r.y_max) / 2], dtype=z.dtype, device=z.device)
                 else:
                     continue
                 dist_sq = ((pts - ref) ** 2).sum(dim=-1)
@@ -180,19 +180,42 @@ def combined_guidance_fn(
     wirelength = WirelengthGuidance()
     congestion = CongestionGuidance()
     spatial = SpatialGuidance(config.spatial_directives, node_id_to_index) if config.spatial_directives else None
-    die_scale = torch.tensor([graph.die.width, graph.die.height])
+
+    def _safe_gradient(term: GuidanceTerm, z_real: torch.Tensor, label: str) -> torch.Tensor:
+        """LegalityGuidance in particular is O(N^2) in memory (a full
+        pairwise [N,N,2] overlap tensor, plus its autograd graph) -- a real,
+        known scalability limit (needs chunked/sparse pairwise computation
+        for large N, not fixed here under demo time pressure) that was
+        actually hit and crashed the whole server process on a real
+        12,752-node design. Guidance terms are steering surrogates only
+        (see module docstring: never a reported metric), so falling back to
+        "no contribution from this term this step" on OOM is a safe,
+        honest degradation -- printed so it's visible, not silently eaten --
+        rather than crashing generation entirely over a steering nicety."""
+        try:
+            return term.gradient(z_real, graph)
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            print(f"[guidance] {label} guidance ran out of GPU memory at N={z_real.shape[0]} nodes -- "
+                  "skipping this term for this step (known O(N^2) scalability limit, not a silent metric change).")
+            return torch.zeros_like(z_real)
 
     def guidance_fn(z_normalized: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        # Built per-call (not hoisted above the closure) because it must
+        # match z_normalized's device, which is only known when the sampler
+        # actually calls this -- same device-mismatch class as every other
+        # fix in this file.
+        die_scale = torch.tensor([graph.die.width, graph.die.height], dtype=z_normalized.dtype, device=z_normalized.device)
         z_real = z_normalized * die_scale
         total_real = torch.zeros_like(z_real)
         if config.legality_weight:
-            total_real = total_real - config.legality_weight * legality.gradient(z_real, graph)
+            total_real = total_real - config.legality_weight * _safe_gradient(legality, z_real, "legality")
         if config.wirelength_weight:
-            total_real = total_real - config.wirelength_weight * wirelength.gradient(z_real, graph)
+            total_real = total_real - config.wirelength_weight * _safe_gradient(wirelength, z_real, "wirelength")
         if config.congestion_weight:
-            total_real = total_real - config.congestion_weight * congestion.gradient(z_real, graph)
+            total_real = total_real - config.congestion_weight * _safe_gradient(congestion, z_real, "congestion")
         if spatial is not None:
-            total_real = total_real - spatial.gradient(z_real, graph)
+            total_real = total_real - _safe_gradient(spatial, z_real, "spatial")
         return total_real * die_scale  # chain rule back to normalized-z gradient
 
     return guidance_fn

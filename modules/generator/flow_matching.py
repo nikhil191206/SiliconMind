@@ -36,12 +36,18 @@ class FlowMatchingGenerationStrategy(GenerationStrategy):
         frozen_mask: Optional[torch.Tensor] = None,
         generator: Optional[torch.Generator] = None,
     ) -> torch.Tensor:
+        device = z1.device
         if generator is not None:
-            z0 = torch.randn(z1.shape, generator=generator)
-            t = torch.rand((), generator=generator)
+            # generator (a torch.Generator) is CPU-only in this codebase's
+            # callers (see PlacementGenerator._sample_with_retry) -- sample
+            # on CPU with it, then move to z1's device, rather than passing
+            # a CPU generator directly to a CUDA randn call, which torch
+            # rejects.
+            z0 = torch.randn(z1.shape, generator=generator).to(device)
+            t = torch.rand((), generator=generator).to(device)
         else:
             z0 = torch.randn_like(z1)
-            t = torch.rand(())
+            t = torch.rand((), device=device)
         z_t = (1 - t) * z0 + t * z1
         target_v = z1 - z0
         pred_v = self.backbone(z_t, node_embeddings, global_embedding, t)
@@ -81,7 +87,7 @@ class FlowMatchingGenerationStrategy(GenerationStrategy):
 
         dt = 1.0 / num_steps
         for step in range(num_steps):
-            t = torch.tensor(step * dt)
+            t = torch.tensor(step * dt, device=device)
             v = self.backbone(z, node_embeddings, global_embedding, t)
             if guidance_fn is not None:
                 v = v + guidance_fn(z, t)

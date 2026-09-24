@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from shared.schemas.circuit_graph import CircuitGraph, CircuitHyperedge, CircuitNode, Die, NodeType
+from shared.schemas.placement import GenerationMetadata, Orientation, PlacementEntry, PlacementJSON
 
 _MICRON_SCALE_DEFAULT = 100  # DEF "UNITS DISTANCE MICRONS <n>" — DEF coords are in 1/n micron
 
@@ -103,6 +104,7 @@ class DefComponent:
     y: float
     is_fixed: bool
     is_placed: bool  # False for UNPLACED (ISPD2015's floorplan.def ships components with no coordinates at all)
+    orientation: Optional[str] = None  # DEF orientation code (N/S/E/W/FN/FS/FE/FW), None if is_placed is False
 
 
 @dataclass
@@ -156,7 +158,7 @@ def parse_def(def_path: Path) -> ParsedDef:
     components_flat = re.sub(r"\s+", " ", components_block.group(1))
     components: List[DefComponent] = []
     for m in _COMPONENT_STATEMENT.finditer(components_flat):
-        name, macro, status, x, y, _orient = m.groups()
+        name, macro, status, x, y, orient = m.groups()
         is_placed = x is not None
         components.append(
             DefComponent(
@@ -166,6 +168,7 @@ def parse_def(def_path: Path) -> ParsedDef:
                 y=float(y) if is_placed else 0.0,
                 is_fixed=(status in ("FIXED", "COVER")),
                 is_placed=is_placed,
+                orientation=orient if is_placed else None,
             )
         )
 
@@ -244,4 +247,59 @@ def lefdef_to_circuit_graph(lef_path: Union[Path, List[Path]], def_path: Path) -
         nodes=nodes,
         hyperedges=hyperedges,
         die=Die(width=parsed_def.die_width, height=parsed_def.die_height),
+    )
+
+
+def def_has_real_reference_placement(def_path: Path, min_placed_fraction: float = 0.99) -> bool:
+    """True if this DEF's own components are (almost) all real PLACED/FIXED
+    coordinates -- i.e. it's a genuine reference-placement benchmark (e.g.
+    ISPD02's ibm01-ibm18) rather than an unplaced/floorplan-only DEF (e.g.
+    ISPD2015's floorplan.def, which is mostly UNPLACED). Used to gate real
+    generator-training-target extraction so an unplaced DEF is never
+    mistaken for one, rather than silently extracting a near-empty or
+    all-zero placement."""
+    parsed_def = parse_def(def_path)
+    if not parsed_def.components:
+        return False
+    placed_fraction = sum(1 for c in parsed_def.components if c.is_placed) / len(parsed_def.components)
+    return placed_fraction >= min_placed_fraction
+
+
+def lefdef_to_real_placement(def_path: Path) -> PlacementJSON:
+    """Extracts the REAL PLACED/FIXED (x, y, orientation) already present in
+    a reference-placement DEF file into a schema-valid PlacementJSON, using
+    the identical component order (parsed_def.components, enumerated 0..N-1)
+    that lefdef_to_circuit_graph uses to assign node_id -- so a CircuitGraph
+    and PlacementJSON built from the SAME def_path always align node-for-
+    node. This is real, published benchmark data (the actual known
+    placement these classic IBM-derived benchmarks ship with), used as a
+    genuine supervised training target -- never a fabricated/synthetic one.
+
+    Raises if the DEF isn't (almost entirely) placed -- see
+    def_has_real_reference_placement -- rather than silently returning a
+    placement built mostly from is_placed=False components' meaningless
+    (0.0, 0.0) fallback coordinates."""
+    parsed_def = parse_def(def_path)
+    if not def_has_real_reference_placement(def_path):
+        raise ValueError(
+            f"{def_path} is not a real reference-placement DEF (most components are UNPLACED) -- "
+            "cannot extract real training targets from it. See ISPD2015's floorplan.def for an "
+            "example of what this correctly rejects."
+        )
+
+    placements = []
+    for i, comp in enumerate(parsed_def.components):
+        placements.append(
+            PlacementEntry(
+                node_id=i,
+                x=comp.x / parsed_def.micron_scale,
+                y=comp.y / parsed_def.micron_scale,
+                orientation=Orientation(comp.orientation) if comp.orientation else Orientation.N,
+            )
+        )
+
+    return PlacementJSON(
+        design_name=parsed_def.design_name,
+        placements=placements,
+        generation_metadata=GenerationMetadata(model_variant="ispd02_real_reference", seed=0, is_legalized=True),
     )

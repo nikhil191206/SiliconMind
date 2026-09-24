@@ -160,8 +160,15 @@ class DEHNNEncoder(NetlistEncoder):
         self.model = model if model is not None else DEHNNModel()
 
     def encode(self, graph: CircuitGraph) -> EncoderOutput:
-        x = node_features(graph)
+        # Move inputs to whatever device self.model's parameters are on --
+        # without this, a model moved to GPU (e.g. backend/main.py serving
+        # inference on GPU) would crash on the first call: the same class of
+        # CPU/GPU tensor-mismatch bug found and fixed in
+        # modules/generator/network.py's sinusoidal_time_embedding.
+        device = next(self.model.parameters()).device
+        x = node_features(graph).to(device)
         node_idx, edge_idx, num_edges = build_incidence(graph)
+        node_idx, edge_idx = node_idx.to(device), edge_idx.to(device)
 
         self.model.eval()
         with torch.no_grad():

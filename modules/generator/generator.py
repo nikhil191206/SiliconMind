@@ -63,8 +63,16 @@ class PlacementGenerator:
         guidance_fn,
         seed: int,
     ) -> torch.Tensor:
+        # A torch.Generator is tied to a specific device at construction; a
+        # default (CPU) generator passed into a CUDA torch.randn call raises
+        # immediately ("Expected a 'cuda' device type for generator but
+        # found 'cpu'") -- another instance of the same device-mismatch bug
+        # class as sinusoidal_time_embedding and DEHNNEncoder.encode, caught
+        # here once GPU inference was actually exercised end-to-end for the
+        # first time.
+        rng_device = encoder_output.node_embeddings.device
         for attempt_seed in (seed, seed + 1):
-            rng = torch.Generator().manual_seed(attempt_seed)
+            rng = torch.Generator(device=rng_device).manual_seed(attempt_seed)
             z = self.strategy.sample(
                 node_embeddings=encoder_output.node_embeddings,
                 global_embedding=encoder_output.global_embedding,
@@ -109,6 +117,15 @@ class PlacementGenerator:
         frozen_mask, frozen_values = build_frozen_mask(
             num_nodes, node_id_to_index, graph.die, frozen_placements
         )
+        # build_frozen_mask always returns CPU tensors; sample() indexes them
+        # directly against the sampled coordinate tensor `z`, which lives on
+        # encoder_output.node_embeddings.device -- moving them here (rather
+        # than teaching build_frozen_mask about devices, which doesn't need
+        # to know about them for its own logic) keeps this a device-mismatch
+        # fix at the one point it actually matters, same class of bug as
+        # network.py's sinusoidal_time_embedding and DEHNNEncoder.encode.
+        target_device = encoder_output.node_embeddings.device
+        frozen_mask, frozen_values = frozen_mask.to(target_device), frozen_values.to(target_device)
         frozen_by_id = {fp.node_id: fp for fp in (frozen_placements or [])}
 
         guidance_fn = None

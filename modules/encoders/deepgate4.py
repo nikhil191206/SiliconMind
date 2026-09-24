@@ -141,21 +141,25 @@ class DeepGate4Encoder(NetlistEncoder):
         set reuse their cached historical embedding bit-for-bit; nodes with
         no cache entry yet are always treated as active regardless of the
         set passed in, since there is nothing to reuse for them."""
-        x = node_features(graph)
-        edge_index = star_expansion_edge_index(graph)
-        local_pe = compute_local_pe(graph, edge_index)
-        global_pe = compute_global_pe(graph, edge_index, k=GLOBAL_PE_DIM)
+        device = next(self.model.parameters()).device
+        x = node_features(graph).to(device)
+        edge_index = star_expansion_edge_index(graph).to(device)
+        # compute_local_pe/compute_global_pe build plain CPU tensors internally
+        # (see positional_encoding.py) -- moved here, same device-mismatch
+        # class as every other encoder fix made tonight.
+        local_pe = compute_local_pe(graph, edge_index.cpu()).to(device)
+        global_pe = compute_global_pe(graph, edge_index.cpu(), k=GLOBAL_PE_DIM).to(device)
 
         node_ids = [n.node_id for n in graph.nodes]
         num_nodes = graph.num_nodes
 
-        active_mask = torch.ones(num_nodes, dtype=torch.bool)
+        active_mask = torch.ones(num_nodes, dtype=torch.bool, device=device)
         historical = None
         if active_node_ids is not None:
             cached = [self.cache.get(graph.design_name, nid) for nid in node_ids]
             if all(c is not None for c in cached):
-                historical = torch.stack(cached, dim=0)
-                active_mask = torch.tensor([nid in active_node_ids for nid in node_ids], dtype=torch.bool)
+                historical = torch.stack(cached, dim=0).to(device)
+                active_mask = torch.tensor([nid in active_node_ids for nid in node_ids], dtype=torch.bool, device=device)
             # else: no full cache yet for this design — fall back to a full pass.
 
         self.model.eval()

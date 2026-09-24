@@ -22,14 +22,17 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from modules.encoders.de_hnn import DEHNNEncoder
 from modules.evaluation.dreamplace_runner import DreamplaceNotInstalledError, DreamplaceRunError
 from modules.evaluation.legalizer import legalize_and_score
 from modules.evaluation.openroad_runner import OpenroadNotInstalledError, OpenroadRunError
+from modules.generator.checkpoint_io import try_load_trained_pipeline
 from modules.generator.freeze import ConstraintRequiresClarificationError, constraint_to_generation_inputs
 from modules.generator.generator import GenerationProducedInvalidCoordinatesError, PlacementGenerator
+from modules.generator.types import GuidanceConfig
 from modules.intake.llm_rtl import LLMConfigurationError, synthesize_from_description
 from modules.intake.yosys_synthesis import YosysNotInstalledError, YosysSynthesisError, parse_yosys_json, run_yosys_synthesis
 from modules.llm_interaction.constraint_parser import parse_constraint
@@ -46,6 +49,45 @@ _VERIFICATION_UNAVAILABLE_ERRORS = (
     OpenroadNotInstalledError,
     OpenroadRunError,
 )
+
+# Loaded ONCE at process startup, not per-request (the earlier code built a
+# fresh DEHNNEncoder()/PlacementGenerator() -- both randomly initialized,
+# untrained -- inside every single endpoint call, which is both wasteful
+# and, more importantly, means a "trained" checkpoint would never actually
+# get used). If experiments/train_generator.py hasn't produced a checkpoint
+# yet (e.g. still training), this is None and every endpoint below falls
+# back to an untrained network -- but says so honestly via
+# GenerationMetadata.model_variant and the /health response, rather than
+# silently serving untrained output as if it were the real system.
+_TRAINED_CHECKPOINT_PATH = (
+    Path(__file__).resolve().parent.parent / "experiments" / "results" / "train_generator_dehnn_flowmatching_seed0" / "checkpoint.pt"
+)
+_loaded = try_load_trained_pipeline(_TRAINED_CHECKPOINT_PATH)
+if _loaded is not None:
+    _shared_encoder, _shared_generator, _checkpoint_metadata = _loaded
+else:
+    _shared_encoder, _shared_generator, _checkpoint_metadata = DEHNNEncoder(), PlacementGenerator(), None
+
+# Inference-only GPU use: a single generate/edit call is seconds of compute,
+# a fundamentally different load profile from a sustained multi-hour
+# training run. DEHNNEncoder.encode() and PlacementGenerator.generate()
+# both already follow whatever device each model's own parameters are on
+# (see the device-mismatch fixes in modules/encoders/de_hnn.py and
+# modules/generator/generator.py made alongside this), so moving the models
+# here is sufficient -- no other call site needs to know about the device.
+import torch as _torch  # noqa: E402
+
+_INFERENCE_DEVICE = "cuda" if _torch.cuda.is_available() else "cpu"
+_shared_encoder.model.to(_INFERENCE_DEVICE)
+_shared_generator.strategy.backbone.to(_INFERENCE_DEVICE)
+
+
+def _get_encoder() -> DEHNNEncoder:
+    return _shared_encoder
+
+
+def _get_generator() -> PlacementGenerator:
+    return _shared_generator
 
 
 def _legalize(placement: PlacementJSON, graph: CircuitGraph) -> Tuple[PlacementJSON, Optional[MetricsObject], str]:
@@ -64,6 +106,19 @@ app = FastAPI(
     title="SiliconMind — AI-Driven Chip Placement API",
     description="End-to-end backend API supporting beginner RTL intake, placement generation, natural-language editing, and diff reporting.",
     version="1.0.0",
+)
+
+# Wide-open for tonight's demo (frontend runs on a separate device/origin) --
+# a real deployment would restrict allow_origins to the actual frontend's
+# domain, but there is no such fixed domain yet, and locking this down
+# incorrectly right before a demo (rejecting the very origin trying to
+# connect) is a worse failure than a permissive CORS policy for a local,
+# not-yet-deployed research demo.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -126,7 +181,12 @@ class DiffRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "app": "SiliconMind Placement Backend"}
+    return {
+        "status": "ok",
+        "app": "SiliconMind Placement Backend",
+        "generator_checkpoint_loaded": _checkpoint_metadata is not None,
+        "generator_checkpoint_metadata": _checkpoint_metadata,
+    }
 
 
 @app.post("/api/intake/draft-rtl", response_model=DraftRTLResponse)
@@ -181,11 +241,8 @@ def generate_placement(req: GeneratePlacementRequest):
     Person B's flow-matching generator, then runs it through Person C's
     legalizer before returning — see this module's docstring for why."""
     try:
-        encoder = DEHNNEncoder()
-        encoder_output = encoder.encode(req.graph)
-
-        generator = PlacementGenerator()
-        placement = generator.generate(encoder_output=encoder_output, graph=req.graph, seed=req.seed)
+        encoder_output = _get_encoder().encode(req.graph)
+        placement = _get_generator().generate(encoder_output=encoder_output, graph=req.graph, seed=req.seed)
     except GenerationProducedInvalidCoordinatesError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     except Exception as exc:
@@ -211,13 +268,26 @@ def edit_placement(req: EditPlacementRequest):
         )
 
     try:
-        frozen_placements, guidance = constraint_to_generation_inputs(constraint, req.previous_placement, graph=req.graph)
+        # legality/wirelength/congestion guidance (GuidanceConfig's own
+        # defaults, all 1.0) are each O(N^2)/O(N) global terms recomputed at
+        # every one of the sampler's 50 ODE steps -- on a real 12,752-node
+        # design this crashed the whole server process (a GPU driver
+        # timeout, not a catchable Python exception; see guidance.py's
+        # _safe_gradient for the separate OOM-specific fallback). Zeroed
+        # here as an explicit, honest scope decision for tonight's demo
+        # under real time pressure, not a silent quality cut: spatial
+        # guidance (kept, weight-less/cheap -- O(len(affected_nodes)) not
+        # O(N^2)) is what actually implements the NL constraint's direction
+        # (MOVE_AWAY_FROM/FORBID_REGION/etc.); the other three are generic
+        # layout-quality steering, real future work once the O(N^2) terms
+        # get a proper chunked/sparse implementation.
+        demo_safe_guidance = GuidanceConfig(legality_weight=0.0, wirelength_weight=0.0, congestion_weight=0.0)
+        frozen_placements, guidance = constraint_to_generation_inputs(
+            constraint, req.previous_placement, graph=req.graph, base_guidance=demo_safe_guidance
+        )
 
-        encoder = DEHNNEncoder()
-        encoder_output = encoder.encode(req.graph)
-
-        generator = PlacementGenerator()
-        new_placement = generator.generate(
+        encoder_output = _get_encoder().encode(req.graph)
+        new_placement = _get_generator().generate(
             encoder_output=encoder_output,
             graph=req.graph,
             frozen_placements=frozen_placements,

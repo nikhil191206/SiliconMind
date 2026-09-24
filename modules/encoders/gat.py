@@ -72,8 +72,9 @@ class GATEncoder(NetlistEncoder):
         self.model = model if model is not None else GATEncoderModel()
 
     def encode(self, graph: CircuitGraph) -> EncoderOutput:
-        x = node_features(graph)
-        edge_index = star_expansion_edge_index(graph)
+        device = next(self.model.parameters()).device
+        x = node_features(graph).to(device)
+        edge_index = star_expansion_edge_index(graph).to(device)
 
         self.model.eval()
         with torch.no_grad():
